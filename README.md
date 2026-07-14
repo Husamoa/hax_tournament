@@ -1,1 +1,67 @@
-# hax_tournament
+# Pitole — turnieje HaxBall 2v2
+
+Aplikacja webowa dla ekipy **Pitole** do generowania i prowadzenia turniejów w grę
+HaxBall w formacie 2v2 z losowanymi składami i **indywidualnym** rankingiem graczy.
+
+- **Format:** partner round-robin — każda para graczy gra razem (jako drużyna) raz.
+- **Punktacja:** wygrana = 3 pkt dla obu graczy, przegrana = 0. Bez remisów.
+- **Ranking:** indywidualny, na żywo. Sort: punkty → bilans → bramki zdobyte.
+- **Dane:** wspólna baza (każdy widzi to samo) + historia zakończonych turniejów.
+
+## Stack
+
+PHP 8 + MySQL (cienkie API JSON) + frontend SPA (vanilla JS, moduły ES) — **bez
+build-stepu**. Docelowy hosting: OVH, domena `pitole.pl`.
+
+## Struktura
+
+```
+api/       backend PHP (JSON) — db.php = jedyna warstwa dostępu do bazy
+public/    frontend SPA (index.html + moduły JS + CSS)
+docs/      algorytm, model danych, runbook wdrożenia OVH
+schema.sql             schemat MySQL (produkcja)
+schema.sqlite.sql      schemat SQLite (dev lokalny)
+config.sample.php      szablon konfiguracji → skopiuj do api/config.php
+tests/     testy Node dla generatora i rankingu
+```
+
+## Development lokalny
+
+### Docker (zalecane) — jedno polecenie
+
+```bash
+docker compose up
+```
+
+Wstaje wszystko: aplikacja pod **http://localhost:8090** (hasło dev: `pitole`)
++ baza MySQL 8 (jak na produkcji) z automatycznie zaimportowanym schematem.
+Kod jest montowany z hosta — edytujesz plik, odświeżasz przeglądarkę.
+
+- inny port: `APP_PORT=8123 docker compose up`
+- reset bazy: `docker compose down -v`
+
+### Bez Dockera (PHP + SQLite)
+
+```bash
+# 1. Baza SQLite + config
+php -r '$p=new PDO("sqlite:api/pitole.sqlite");$p->exec(file_get_contents("schema.sqlite.sql"));'
+cp config.sample.php api/config.php      # ustaw DSN sqlite + password_hash
+
+# 2. Serwer dev (router odtwarza układ OVH: / = public/, /api = api/)
+php -S 127.0.0.1:8099 dev-server.php
+```
+
+### Testy logiki (wymaga Node)
+
+```bash
+npm test
+```
+
+## Dla AI / nowych osób
+
+Zacznij od [`CLAUDE.md`](CLAUDE.md) — mapa projektu, reguły domenowe i wskaźniki do
+`docs/` oraz plików `CLAUDE.md` w `api/` i `public/`.
+
+## Wdrożenie na OVH
+
+Krok po kroku: [`docs/deployment-ovh.md`](docs/deployment-ovh.md).

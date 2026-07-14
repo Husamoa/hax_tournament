@@ -1,0 +1,15 @@
+# IDE
+.idea/
+
+# Node (tylko do testów lokalnych)
+node_modules/
+
+# Lokalna konfiguracja z sekretami — NIGDY nie commitować
+api/config.php
+
+# Lokalna baza SQLite (dev)
+*.sqlite
+*.sqlite3
+
+# Claude local
+.claude/settings.local.json

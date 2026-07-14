@@ -1,0 +1,47 @@
+# Pitole — development lokalny: `docker compose up` i wszystko wstaje.
+#
+#   aplikacja:  http://localhost:8090   (port zmienisz zmienną APP_PORT)
+#   hasło dev:  pitole
+#   baza:       MySQL 8 (jak na produkcji OVH); schemat importuje się sam
+#               przy PIERWSZYM starcie wolumenu. Reset bazy: docker compose down -v
+#
+# Kod jest montowany z hosta — edytujesz pliki, odświeżasz przeglądarkę,
+# bez przebudowy obrazu.
+
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-8090}:80"
+    volumes:
+      # żywy kod z hosta. API montowane POZA DocumentRoot (/var/www/api,
+      # wystawione pod /api Aliasem w obrazie) — mounty się nie zagnieżdżają,
+      # więc Docker nie tworzy plików-stubów na hoście w public/.
+      - ./public:/var/www/html
+      - ./api/index.php:/var/www/api/index.php:ro
+      - ./api/db.php:/var/www/api/db.php:ro
+      # config developerski (MySQL z kontenera "db", hasło dev "pitole")
+      - ./docker/config.docker.php:/var/www/api/config.php:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: pitole
+      MYSQL_USER: pitole
+      MYSQL_PASSWORD: pitole
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      # auto-import schematu przy pierwszej inicjalizacji wolumenu
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-upitole", "-ppitole"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  dbdata:

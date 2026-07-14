@@ -1,0 +1,12 @@
+# Nie pakuj do build contextu niczego poza tym, co kopiuje Dockerfile
+.git/
+.idea/
+.claude/
+node_modules/
+tests/
+docs/
+dev-server.php
+*.sqlite
+*.sqlite3
+# lokalny config (sekrety / SQLite) — kontener dostaje docker/config.docker.php wolumenem
+api/config.php
