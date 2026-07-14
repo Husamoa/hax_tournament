@@ -224,3 +224,32 @@ table.rank td.pts { font-weight: 700; }
 .empty { text-align: center; color: var(--muted); padding: 32px 16px; }
 .count-hint { font-size: 0.9rem; color: var(--muted); margin: 8px 0; }
 .section-gap { margin-top: 20px; }
+
+/* ---------- Statystyki ---------- */
+.stats-subtabs { flex-wrap: wrap; }
+.stats-subtabs .subtab { flex: 1 1 auto; min-width: 72px; padding: 8px 10px; font-size: 0.9rem; }
+.pname { color: var(--green-dark); cursor: pointer; text-decoration: none; }
+.pname:hover { text-decoration: underline; }
+.team .names.win { color: var(--green-dark); font-weight: 700; }
+
+.src-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: 6px;
+}
+.src-badge.live { color: var(--green); border-color: var(--green); }
+
+.stat-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 480px) { .stat-tiles { grid-template-columns: repeat(4, 1fr); } }
+.stat-tile { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+.stat-l { font-size: 0.72rem; color: var(--muted); }
+.stat-v { font-size: 1.25rem; font-weight: 700; }
+
+.goal-list { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+.goal { font-size: 0.82rem; padding: 3px 8px; border-radius: 6px; background: var(--green-light); border-left: 3px solid var(--muted); }
+.goal.red { border-left-color: #c0392b; }
+.goal.blue { border-left-color: #2c6fbb; }

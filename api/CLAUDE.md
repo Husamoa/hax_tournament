@@ -25,8 +25,21 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 | DELETE | `tournaments` | `&id=` | usuń (CASCADE) |
 | POST | `finish` | `&id=` + `{winner_player_id}` | zakończ turniej |
 | PATCH | `matches` | `&id=` + `{score_a, score_b}` | zapis wyniku (null,null = wyczyść) |
+| POST | `ingest` | `{room,red[],blue[],red_score,blue_score,winner,goals[]}` | **BEZ auth** — mecz z HaxBall (tamper) + auto-link do turnieju |
+| GET | `stats` | — | surowe mecze (na żywo + rzut turniejowy, dedup) + aliasy; klient liczy resztę |
+| GET/POST/DELETE | `aliases` | `{alias,canonical}` / `&alias=` | scalanie nicków |
+| DELETE | `stat_matches` | `&id=` | usuń mecz na żywo ze statystyk |
 
-Wszystko poza `session`/`login` wymaga zalogowania (`require_auth()`).
+Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
+
+## Statystyki (Repo)
+
+- `ingestStatMatch($p)` — zapis meczu (`stat_matches` + `stat_match_players` + `stat_goals`)
+  w transakcji, potem `autoLinkActiveTournament()` (dopasowanie składu po nickach/aliasach →
+  wpis wyniku do `matches` + zapamiętanie `tournament_match_id`).
+- `statData()` — łączy mecze na żywo z rzutem meczów turniejowych z wynikiem, pomijając te już
+  reprezentowane przez mecz na żywo (dedup po `tournament_match_id`). Zwraca kształt name-based.
+- Aliasy: `aliasMap()`/`resolve()` (płaskie mapowanie, spłaszczanie łańcucha), `setAlias`/`deleteAlias`.
 
 ## Zasady
 

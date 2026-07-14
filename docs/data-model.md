@@ -66,6 +66,46 @@ Dla każdego gracza:
 
 **Sortowanie:** Punkty ↓ → Bilans ↓ → Bramki zdobyte ↓ (na końcu alfabetycznie, dla determinizmu).
 
+## Statystyki (moduł globalny)
+
+Warstwa **name-based** (gracze po nicku — HaxBall nie ma stałego id). Osobna od id-owego
+rostera turniejowego; most między nimi to nick == `name_snapshot` + tabela `aliases`.
+
+### `stat_matches` — zakończony mecz z pokoju HaxBall
+| Kolumna | Typ | Opis |
+|---|---|---|
+| `id` | PK | |
+| `room` | VARCHAR | id pokoju albo `manual` |
+| `started_at`, `ended_at`, `duration_sec` | DOUBLE | czas (unix, sekundy) |
+| `red_score`, `blue_score` | INT | wynik |
+| `winner` | VARCHAR | `red` / `blue` (HaxBall zawsze ma zwycięzcę) |
+| `tournament_match_id` | FK→matches NULL | auto-link do meczu turnieju (dedup) |
+| `created_at` | DATETIME | |
+
+### `stat_match_players` — skład (migawka z `onGameStart`)
+`id` PK, `match_id` FK→stat_matches (CASCADE), `name`, `team` (`red`/`blue`).
+
+### `stat_goals` — gole
+`id` PK, `match_id` FK (CASCADE), `time`, `team`, `scorer` NULL, `assist` NULL, `own_goal` bool.
+`scorer`/`assist` bywają NULL — kolektor z DOM nie zna strzelca.
+
+### `aliases` — scalanie nicków
+`alias` PK (stary/inny nick) → `canonical` (aktualny). Odwracalne, nie zmienia zapisów meczów.
+
+### Wyliczane w kliencie ([`public/stats.js`](../public/stats.js))
+
+Z `Repo::statData()` (mecze na żywo + rzut meczów turniejowych z wynikiem, dedup po
+`tournament_match_id`) klient liczy: leaderboard (punktacja Pitole 3/0 + bilans + BZ/BS + gole/
+asysty), **Elo** (baza 1000, K=32, chronologicznie), head-to-head, partnerów, dni, kategorie,
+podsumowanie. Aliasy resolvowane przez `resolveMatches()` przed liczeniem.
+
+### Auto-link do turnieju (`ingest`)
+
+Nowy mecz na żywo o składzie równym meczowi **aktywnego** turnieju (nicki, aliasy, niezależnie
+od strony/kolejności) → backend wpisuje wynik do `matches` (mapując czerwony/niebieski na A/B)
+i zapisuje `tournament_match_id`. Prawdziwy wynik nadpisuje ręczny; nie nadpisuje już
+zlinkowanego. To zapobiega dublowaniu w statystykach.
+
 ## Kontrakt danych dla frontendu
 
 `Repo::getTournament(id)` zwraca:

@@ -28,8 +28,10 @@ uruchomienia testów logiki lokalnie.
 | `public/app.js` | Cała logika UI: routing widoków, ekrany, zapis wyników, edycja składów |
 | `public/api.js` | Klient `fetch` do API (obiekt `api`) |
 | `public/schedule.js` | **Generator harmonogramu** (partner round-robin). Import w app.js i w testach |
-| `public/ranking.js` | Liczenie rankingu + `validateScore` (walidacja braku remisu) |
+| `public/ranking.js` | Liczenie rankingu turnieju + `validateScore` (walidacja braku remisu) |
+| `public/stats.js` | **Statystyki globalne** (leaderboard, Elo, H2H, partnerzy, dni, kategorie, aliasy). Czysta logika, import w app.js i w testach |
 | `public/styles.css` | Style mobile-first |
+| `tampermonkey/pitole-collector.user.js` | **Opcjonalny** userscript — nasłuch pokoju HaxBall w przeglądarce, POST wyniku do `?r=ingest` |
 | `schema.sql` / `schema.sqlite.sql` | Schemat bazy (MySQL / SQLite) |
 | `docs/algorithm.md` | Algorytm losowania + tabela liczby meczów + niezmienniki |
 | `docs/data-model.md` | Model danych + wzór rankingu |
@@ -51,6 +53,21 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
 - **Ranking:** indywidualny. Sort: punkty ↓, bilans ↓, bramki zdobyte ↓.
 - **Bilans gracza** = bramki zdobyte przez jego drużyny − stracone (ze wszystkich jego meczów).
 - Generator i ranking liczą się **po stronie klienta**; backend to cienki CRUD + auth.
+
+### Statystyki (moduł globalny — ponad pojedynczym turniejem)
+
+- **Warstwa name-based:** mecze statystyk identyfikują graczy po **nicku** (haxball nie ma
+  stałego id), osobno od id-owego rostera turniejowego. Most: nick == `name_snapshot` + aliasy.
+- **Dwa źródła, jedna tabela:** (1) mecze na żywo z pokoju HaxBall (tamper → `?r=ingest`),
+  (2) rzut meczów turniejowych z wynikiem. `statData()` łączy je i deduplikuje po auto-linku.
+- **Auto-link (jak w haxstats):** przy ingeście backend szuka meczu **aktywnego** turnieju o
+  tym samym składzie (nicki, aliasy, niezależnie od strony/kolejności) i wpisuje mu wynik
+  (mapując czerwony/niebieski na drużynę A/B). Prawdziwy wynik nadpisuje ręczny; nie nadpisuje
+  już zlinkowanego. Zapamiętany w `stat_matches.tournament_match_id` → zapobiega dublowaniu.
+- **Punktacja globalna** trzyma regułę Pitole (3 pkt/wygraną, brak remisów). Dodatkowo Elo
+  (baza 1000, K=32, odtwarzane chronologicznie). Gole/asysty bywają 0 — kolektor z DOM nie
+  zna strzelca (wysyła `null`).
+- **Endpoint `?r=ingest` jest BEZ logowania** (tamper działa cross-origin na haxball.com).
 
 ## Uruchomienie lokalne
 

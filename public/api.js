@@ -50,4 +50,13 @@ export const api = {
   // wyniki
   setScore: (matchId, scoreA, scoreB) =>
     req('PATCH', 'matches', { id: matchId }, { score_a: scoreA, score_b: scoreB }),
+
+  // statystyki (surowe mecze + aliasy — liczone po stronie klienta w stats.js)
+  stats: () => req('GET', 'stats'),
+  deleteStatMatch: (id) => req('DELETE', 'stat_matches', { id }),
+
+  // aliasy (scalanie nicków)
+  aliases: () => req('GET', 'aliases'),
+  addAlias: (alias, canonical) => req('POST', 'aliases', {}, { alias, canonical }),
+  deleteAlias: (alias) => req('DELETE', 'aliases', { alias }),
 };

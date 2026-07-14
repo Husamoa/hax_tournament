@@ -7,6 +7,9 @@ HaxBall w formacie 2v2 z losowanymi składami i **indywidualnym** rankingiem gra
 - **Punktacja:** wygrana = 3 pkt dla obu graczy, przegrana = 0. Bez remisów.
 - **Ranking:** indywidualny, na żywo. Sort: punkty → bilans → bramki zdobyte.
 - **Dane:** wspólna baza (każdy widzi to samo) + historia zakończonych turniejów.
+- **Statystyki (globalne):** ranking ponad turniejami, Elo, head-to-head, partnerzy, dni,
+  kategorie, scalanie nicków. Zasilane wynikami z turniejów **oraz** opcjonalnym nasłuchem
+  pokoju HaxBall (userscript Tampermonkey → auto-wpis wyniku do aktywnego turnieju).
 
 ## Stack
 
@@ -22,8 +25,16 @@ docs/      algorytm, model danych, runbook wdrożenia OVH
 schema.sql             schemat MySQL (produkcja)
 schema.sqlite.sql      schemat SQLite (dev lokalny)
 config.sample.php      szablon konfiguracji → skopiuj do api/config.php
-tests/     testy Node dla generatora i rankingu
+tests/       testy Node dla generatora, rankingu i statystyk
+tampermonkey/  opcjonalny userscript do nasłuchu wyników z HaxBall
 ```
+
+## Nasłuch wyników (opcjonalny)
+
+Userscript [`tampermonkey/pitole-collector.user.js`](tampermonkey/pitole-collector.user.js)
+nasłuchuje pokoju HaxBall w przeglądarce i wysyła zakończone mecze do Pitole. Wynik trafia do
+globalnych statystyk, a gdy skład pasuje do meczu aktywnego turnieju — wpisywany jest
+automatycznie. Instalacja i konfiguracja: [`tampermonkey/README.md`](tampermonkey/README.md).
 
 ## Development lokalny
 

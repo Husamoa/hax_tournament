@@ -17,8 +17,14 @@ declare(strict_types=1);
  *   DELETE api/index.php?r=tournaments&id=ID
  *   POST   api/index.php?r=finish&id=ID     {winner_player_id}
  *   PATCH  api/index.php?r=matches&id=ID    {score_a, score_b}   (null,null = wyczyść)
+ *   POST   api/index.php?r=ingest          {room,red[],blue[],red_score,blue_score,winner,goals[]}  (BEZ auth — tamper)
+ *   GET    api/index.php?r=stats            (surowe mecze + aliasy do liczenia statystyk po stronie klienta)
+ *   GET    api/index.php?r=aliases
+ *   POST   api/index.php?r=aliases         {alias, canonical}   (scalanie nicków)
+ *   DELETE api/index.php?r=aliases&alias=NICK
+ *   DELETE api/index.php?r=stat_matches&id=ID
  *
- * Wszystko poza session/login wymaga zalogowania (wspólne hasło ekipy -> sesja).
+ * Wszystko poza session/login/ingest wymaga zalogowania (wspólne hasło ekipy -> sesja).
  */
 
 require __DIR__ . '/db.php';
@@ -206,6 +212,81 @@ try {
             }
             Repo::setScore($id, $a, $bb);
             out(['ok' => true]);
+
+        case 'ingest':
+            // Endpoint dla tampera — zakończony mecz z pokoju HaxBall. BEZ logowania
+            // (userscript działa cross-origin na haxball.com, nie ma sesji PHP).
+            if ($method !== 'POST') {
+                err('Metoda niedozwolona.', 405);
+            }
+            $b = body_json();
+            $red = $b['red'] ?? [];
+            $blue = $b['blue'] ?? [];
+            if (!is_array($red) || !is_array($blue) || count($red) === 0 || count($blue) === 0) {
+                out(['counted' => false, 'error' => 'Pusty skład.'], 200);
+            }
+            $winner = ($b['winner'] ?? '') === 'blue' ? 'blue' : 'red';
+            $now = time();
+            $payload = [
+                'room'         => (string) ($b['room'] ?? 'unknown'),
+                'started_at'   => is_numeric($b['started_at'] ?? null) ? (float) $b['started_at'] : $now,
+                'ended_at'     => is_numeric($b['ended_at'] ?? null) ? (float) $b['ended_at'] : $now,
+                'duration_sec' => is_numeric($b['duration_sec'] ?? null) ? (float) $b['duration_sec'] : 0,
+                'red_score'    => (int) ($b['red_score'] ?? 0),
+                'blue_score'   => (int) ($b['blue_score'] ?? 0),
+                'winner'       => $winner,
+                'red'          => array_values(array_filter(array_map('strval', $red), 'strlen')),
+                'blue'         => array_values(array_filter(array_map('strval', $blue), 'strlen')),
+                'goals'        => is_array($b['goals'] ?? null) ? $b['goals'] : [],
+            ];
+            $res = Repo::ingestStatMatch($payload);
+            out(['id' => $res['id'], 'counted' => true, 'linked' => $res['linked']], 201);
+
+        case 'stats':
+            require_auth();
+            if ($method !== 'GET') {
+                err('Metoda niedozwolona.', 405);
+            }
+            out(Repo::statData());
+
+        case 'stat_matches':
+            require_auth();
+            if ($method !== 'DELETE') {
+                err('Metoda niedozwolona.', 405);
+            }
+            if ($id <= 0) {
+                err('Brak id meczu.');
+            }
+            Repo::deleteStatMatch($id);
+            out(['ok' => true]);
+
+        case 'aliases':
+            require_auth();
+            if ($method === 'GET') {
+                out(Repo::listAliases());
+            }
+            if ($method === 'POST') {
+                $b = body_json();
+                $alias = trim((string) ($b['alias'] ?? ''));
+                $canonical = trim((string) ($b['canonical'] ?? ''));
+                if ($alias === '' || $canonical === '') {
+                    err('Podaj oba nicki.');
+                }
+                if ($alias === $canonical) {
+                    err('Nick nie może wskazywać na siebie.');
+                }
+                Repo::setAlias($alias, $canonical);
+                out(['alias' => $alias, 'canonical' => $canonical], 201);
+            }
+            if ($method === 'DELETE') {
+                $alias = (string) ($_GET['alias'] ?? '');
+                if ($alias === '') {
+                    err('Brak aliasu.');
+                }
+                Repo::deleteAlias($alias);
+                out(['ok' => true]);
+            }
+            err('Metoda niedozwolona.', 405);
 
         default:
             err('Nieznany zasób.', 404);

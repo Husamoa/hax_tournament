@@ -47,3 +47,54 @@ CREATE TABLE matches (
   CONSTRAINT fk_m_t FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
   INDEX idx_m_t (tournament_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------------ STATYSTYKI
+-- Moduł statystyk zbiera mecze z pokoju HaxBall (przez tampera, endpoint ingest).
+-- Gracze identyfikowani po NAZWIE (haxball nie ma stałego id). To osobna warstwa od
+-- rostera turniejowego (id-owego); most między nimi to nick == name_snapshot + aliasy.
+
+-- Zakończony (zwycięski) mecz z pokoju HaxBall.
+CREATE TABLE stat_matches (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  room                VARCHAR(64) NOT NULL,          -- id pokoju albo "manual"
+  started_at          DOUBLE      NOT NULL,          -- unix (float, sekundy)
+  ended_at            DOUBLE      NOT NULL,
+  duration_sec        DOUBLE      NOT NULL,
+  red_score           INT         NOT NULL,
+  blue_score          INT         NOT NULL,
+  winner              VARCHAR(8)  NOT NULL,           -- 'red' | 'blue'
+  tournament_match_id INT NULL,                       -- auto-link do meczu turnieju (dedup)
+  created_at          DATETIME    NOT NULL,
+  CONSTRAINT fk_sm_tm FOREIGN KEY (tournament_match_id) REFERENCES matches(id) ON DELETE SET NULL,
+  INDEX idx_sm_tm (tournament_match_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Skład drużyny (migawka z onGameStart). team = 'red' | 'blue'.
+CREATE TABLE stat_match_players (
+  id       INT AUTO_INCREMENT PRIMARY KEY,
+  match_id INT NOT NULL,
+  name     VARCHAR(64) NOT NULL,
+  team     VARCHAR(8)  NOT NULL,
+  CONSTRAINT fk_smp_m FOREIGN KEY (match_id) REFERENCES stat_matches(id) ON DELETE CASCADE,
+  INDEX idx_smp_m (match_id),
+  INDEX idx_smp_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Gole (strzelec/asysta mogą być NULL — z DOM przeglądarki nie da się ich odczytać).
+CREATE TABLE stat_goals (
+  id       INT AUTO_INCREMENT PRIMARY KEY,
+  match_id INT NOT NULL,
+  time     DOUBLE      NOT NULL,
+  team     VARCHAR(8)  NOT NULL,
+  scorer   VARCHAR(64) NULL,
+  assist   VARCHAR(64) NULL,
+  own_goal TINYINT     NOT NULL DEFAULT 0,
+  CONSTRAINT fk_sg_m FOREIGN KEY (match_id) REFERENCES stat_matches(id) ON DELETE CASCADE,
+  INDEX idx_sg_m (match_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Scalanie nicków: alias (stary/inny nick) -> canonical (aktualny). Odwracalne.
+CREATE TABLE aliases (
+  alias     VARCHAR(64) NOT NULL PRIMARY KEY,
+  canonical VARCHAR(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

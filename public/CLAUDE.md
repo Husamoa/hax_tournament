@@ -14,6 +14,9 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - **`schedule.js`** — generator harmonogramu (opis: `../docs/algorithm.md`). Czysta logika,
   importowana też w testach Node.
 - **`ranking.js`** — `computeRanking` + `validateScore`. Czysta logika, testowana w Node.
+- **`stats.js`** — statystyki globalne (leaderboard, `eloRatings`, `headToHead`, `teammates`,
+  `days`, `categories`, `summary`, `playerDetail`, `resolveMatches`/`aliasMap`). Czysta logika,
+  operuje na płaskiej liście meczów z `?r=stats`. Testowana w Node.
 - **`styles.css`** — mobile-first, zmienne CSS w `:root`, akcent „boiskowy" zielony.
 
 ## Model stanu (`state` w app.js)
@@ -24,6 +27,10 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - `draft` — tworzony turniej przed zapisem `{name, seed, playerIds, matches}`
 - `setup` — ekran wyboru graczy `{name, selected:Set}`
 - `subtab` (`mecze`|`tabela`), `editing` (edycja składów), `historyDetail`
+- **statystyki:** `statsRaw` (surowe z API), `statsMatches` (po aliasach), `statsSub`
+  (`ranking`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsCat`/`statsDay` (filtry),
+  `statsPlayer`, `statsExpanded` (rozwinięte mecze), `h2hA`/`h2hB`. Dane ładowane leniwie przy
+  wejściu w zakładkę (`loadStats`), przycisk „↻ Odśwież”. Nazwy graczy przez `esc()`.
 
 ## Przepływ ekranów
 
