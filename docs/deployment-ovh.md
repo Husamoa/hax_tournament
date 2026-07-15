@@ -1,107 +1,169 @@
 # Wdrożenie na OVH (krok po kroku)
 
-Cel: uruchomić aplikację pod `https://pitole.pl` na hostingu współdzielonym OVH
-(PHP + MySQL), bez build-stepu, wgrywając pliki przez FTP.
+Cel: uruchomić aplikację pod `https://pitole.pl`. Produkcja stoi na **darmowym hostingu
+OVH 100M** (PHP 8.2) z bazą **SQLite** — bez build-stepu, pliki wgrywa się przez FTP.
 
-Układ docelowy w web roocie (np. katalog `www/`):
+> **Dlaczego SQLite, nie MySQL?** Darmowy hosting OVH do domeny nie ma bazy MySQL, a aplikacja
+> waży < 1 MB i obsługuje ruch małej ekipy — SQLite w zupełności wystarcza. Kod wspiera też
+> MySQL (patrz sekcja **Wariant MySQL** na końcu), gdyby kiedyś przejść na płatny plan.
+
+Układ docelowy w web roocie (`www/`):
 ```
 www/
-  index.html  app.js  api.js  schedule.js  ranking.js  styles.css   ← zawartość public/
+  index.html  app.js  api.js  schedule.js  ranking.js  stats.js  styles.css   ← zawartość public/
+  .htaccess                                                                    ← wymusza HTTPS
   api/
-    index.php  db.php  config.php                                    ← katalog api/
+    index.php  db.php  config.php  pitole.sqlite  .htaccess                    ← katalog api/ + baza
 ```
 Frontend woła API ścieżką względną `api/index.php`, więc wystarczy, że `api/` leży w web roocie.
 
 ---
 
-## 1. Sprawdź, czy plan ma bazę MySQL
+## Część A — pierwsze (ręczne) wdrożenie
 
-OVH Manager → **Hosting** → *twój hosting* → zakładka **Bazy danych**.
-- Jest MySQL (choćby 1) → dalej.
-- Brak baz → patrz sekcja **Brak bazy** na końcu.
+### 1. Aktywuj darmowy hosting dla domeny
 
-## 2. Utwórz bazę MySQL
+OVH Manager → **Web Cloud → Hosting**. Jeśli nie masz hostingu przy domenie, aktywuj darmowy
+plan 100M (dołączany do domen w OVH). Zapewnia PHP 8.x i darmowy SSL (Let's Encrypt).
 
-Manager → Bazy danych → **Utwórz bazę danych** (MySQL). Zapisz:
-- **host** (np. `pitolexxxx.mysql.db`), **nazwa bazy**, **użytkownik**, **hasło**.
+### 2. Podłącz domenę (Multisite)
 
-## 3. Zaimportuj schemat
+Manager → Hosting → *twój hosting* → zakładka **Multisite** → **Dodaj domenę lub subdomenę**:
+- dodaj `pitole.pl` **oraz** `www.pitole.pl`,
+- **katalog główny:** `www`,
+- zaznacz **SSL**.
 
-Manager → Bazy danych → **phpMyAdmin** (zaloguj danymi z kroku 2) → wybierz swoją bazę →
-zakładka **Import** → wgraj [`schema.sql`](../schema.sql) → **Wykonaj**.
-Powinny powstać tabele: `players`, `tournaments`, `tournament_players`, `matches`.
+Jeśli DNS domeny wskazuje jeszcze na parking OVH (rekordy A na `213.186.33.5`), skieruj oba
+rekordy **A** (`@` i `www`) na adres klastra hostingu (Manager → Hosting → *Informacje ogólne*
+→ pole **IPv4**) i usuń domyślne przekierowanie OVH (dwa wpisy TXT: `1|www.pitole.pl` i
+`3|welcome`). Certyfikat Let's Encrypt wystawi się automatycznie, gdy DNS wskaże na klaster
+(status w zakładce **Certyfikaty SSL**: `Trwa tworzenie` → data ważności).
 
-## 4. Ustaw PHP 8.x
+### 3. Ustaw PHP 8.x
 
-W web roocie utwórz plik `.ovhconfig`:
+W katalogu **głównym** hostingu (nie w `www`) utwórz plik `.ovhconfig`:
 ```
 app.engine=php
 app.engine.version=8.2
 ```
-(albo wybierz wersję PHP w Managerze → Hosting → Więcej opcji → Wersja PHP).
+(albo wybierz wersję PHP w Managerze). PHP 8.x jest wymagane (`str_starts_with`, typy).
+Potrzebne rozszerzenia: `pdo_sqlite`, `mbstring` — na darmowym planie są dostępne.
 
-## 5. Przygotuj `api/config.php`
+### 4. Przygotuj bazę SQLite i `api/config.php` (lokalnie)
 
-1. Skopiuj `config.sample.php` → `api/config.php`.
-2. Wpisz dane bazy z kroku 2 (sekcja MySQL — zostaw ją odkomentowaną, SQLite zakomentuj):
-   ```php
-   'db_dsn'  => 'mysql:host=pitolexxxx.mysql.db;dbname=NAZWA;charset=utf8mb4',
-   'db_user' => 'UZYTKOWNIK',
-   'db_pass' => 'HASLO',
-   ```
-3. Wygeneruj **hash wspólnego hasła ekipy** (lokalnie, masz XAMPP):
-   ```bash
-   php -r "echo password_hash('TWOJE_HASLO', PASSWORD_DEFAULT), PHP_EOL;"
-   ```
-   Wynik (zaczyna się od `$2y$...`) wklej do `'password_hash' => '...'`.
+```bash
+# 1. Świeża baza ze schematu SQLite
+php -r '$p=new PDO("sqlite:pitole.sqlite");$p->exec(file_get_contents("schema.sqlite.sql"));'
 
-`api/config.php` **nie** jest w repo (`.gitignore`) — tworzysz go ręcznie na serwerze/lokalnie.
+# 2. Hash wspólnego hasła ekipy
+php -r "echo password_hash('TWOJE_HASLO', PASSWORD_DEFAULT), PHP_EOL;"
+```
+Utwórz `api/config.php` (wzór: [`config.sample.php`](../config.sample.php)) z DSN SQLite i hashem:
+```php
+return [
+    'db_dsn'  => 'sqlite:' . __DIR__ . '/pitole.sqlite',
+    'db_user' => null,
+    'db_pass' => null,
+    'password_hash' => '$2y$...WYGENEROWANY_HASH...',
+];
+```
+`api/config.php` i `*.sqlite` są w `.gitignore` — nie trafiają do repo, tworzysz je ręcznie.
 
-## 6. Wgraj pliki przez FTP
+### 5. Ochrona plików `.htaccess`
 
-Dane FTP: Manager → Hosting → **FTP-SSH** (host, login, hasło). Klient np. FileZilla.
+- `www/.htaccess` — wymusza HTTPS (hasło leci w requestach). Wzór:
+  [`.github/deploy/htaccess-www`](../.github/deploy/htaccess-www).
+- `www/api/.htaccess` — blokuje serwowanie pliku bazy po HTTP. Wzór:
+  [`.github/deploy/htaccess-api`](../.github/deploy/htaccess-api).
 
-Do web roota (`www/`):
-- wgraj **zawartość** katalogu `public/` (pliki `index.html`, `*.js`, `styles.css`) — do samego `www/`,
-- wgraj katalog **`api/`** (z `index.php`, `db.php` i uzupełnionym `config.php`) — do `www/api/`.
+### 6. Wgraj pliki przez FTP
 
-Nie wgrywaj: `tests/`, `node_modules/`, `dev-server.php`, `schema.sqlite.sql`, `*.sqlite`,
-`.idea/` — są niepotrzebne na produkcji.
+Dane FTP: Manager → Hosting → **FTP-SSH**. Klient np. FileZilla. Do `www/`:
+- **zawartość** katalogu `public/` (pliki `index.html`, `*.js`, `styles.css`) — do samego `www/`,
+- katalog **`api/`** (z `index.php`, `db.php`, `config.php`, `pitole.sqlite`) — do `www/api/`,
+- oba pliki `.htaccess` (patrz krok 5).
 
-## 7. Podłącz domenę `pitole.pl`
+Nie wgrywaj: `tests/`, `node_modules/`, `dev-server.php`, `schema*.sql`, `*/CLAUDE.md`,
+`docker*`, `.idea/`, `.github/` — niepotrzebne na produkcji.
 
-Manager → **Multisite** → dodaj/edytuj `pitole.pl`:
-- wskaż katalog główny na web root z plikami (np. `www` lub podfolder, jeśli tam wgrałeś),
-- włącz **SSL** (Let's Encrypt jest darmowy w OVH) i **wymuś HTTPS** (hasło leci przez sieć —
-  HTTPS jest obowiązkowe).
-
-Propagacja DNS/SSL może chwilę potrwać.
-
-## 8. Test na produkcji
+### 7. Test na produkcji
 
 Otwórz `https://pitole.pl`:
-1. Zaloguj się wspólnym hasłem.
-2. Zakładka **Gracze** → dodaj kilku graczy.
-3. **Turniej** → zaznacz min. 4 → *Generuj* → *Przelosuj* → *Rozpocznij*.
-4. Wpisz wynik; spróbuj remisu (np. 5:5) → musi zostać zablokowany.
-5. **Tabela** → sprawdź ranking; **Zakończ** → sprawdź **Historię** i szczegóły.
+1. Zaloguj się wspólnym hasłem (sprawdza PHP + odczyt SQLite).
+2. **Gracze** → dodaj kilku (sprawdza zapis do SQLite).
+3. **Turniej** → zaznacz min. 4 → *Generuj* → *Rozpocznij* → wpisz wynik; spróbuj remisu (5:5) → zablokowany.
+4. **Tabela** → ranking; **Zakończ** → **Historia**.
+5. Sprawdź, że baza nie jest publiczna: `https://pitole.pl/api/pitole.sqlite` musi dać **403**.
+
+---
+
+## Część B — automatyczny deploy (GitHub → push `main` → OVH)
+
+Po pierwszym ręcznym wdrożeniu aktualizacje idą automatycznie. Workflow
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) na każdy push do `main`:
+odpala testy (`node --test`), składa produkcyjny układ i synchronizuje go na OVH przez **FTPS**.
+
+### 1. Dodaj sekrety w repozytorium GitHub
+
+Repo → **Settings → Secrets and variables → Actions → New repository secret**. Dodaj trzy:
+
+| Sekret | Wartość (z OVH → Hosting → **FTP-SSH**) |
+|---|---|
+| `FTP_SERVER` | host FTP, np. `ftp.cluster129.hosting.ovh.net` |
+| `FTP_USERNAME` | login FTP |
+| `FTP_PASSWORD` | hasło FTP |
+
+**Zalecane:** załóż w OVH osobnego użytkownika FTP tylko do CI (Hosting → FTP-SSH → dodaj
+użytkownika), zamiast dawać GitHubowi główne poświadczenia.
+
+### 2. Co robi (i czego NIE rusza) sync
+
+- Wgrywa **tylko zmienione** pliki (sync różnicowy), do katalogu `www/` na serwerze.
+- **Nigdy nie dotyka `api/config.php` ani `pitole.sqlite`** — są w `exclude`, więc nie zostaną
+  nadpisane ani skasowane. Config i baza żyją wyłącznie na serwerze.
+- `config.php` i `*.sqlite` są gitignored, więc i tak nie ma ich w repo/paczce.
+
+### 3. `server-dir` — jedyna rzecz do ewentualnej zmiany
+
+Workflow zakłada `server-dir: www/` (główny użytkownik FTP ląduje w katalogu domowym, w którym
+jest `www/`). Jeśli używasz użytkownika FTP z katalogiem domowym ustawionym **wprost na `www`**,
+zmień w workflow `server-dir` na `./`.
+
+### 4. Odpalenie
+
+Zrób push do `main` (albo uruchom ręcznie: zakładka **Actions** → *Deploy na OVH* → **Run
+workflow**). Postęp i logi widać w zakładce **Actions**.
 
 ---
 
 ## Aktualizacje aplikacji
 
-Podmieniasz zmienione pliki przez FTP. **Nie nadpisuj `api/config.php`.** Zmiany w
-`schema.sql` (nowe kolumny) nanieś w phpMyAdmin.
+- **Kod (JS/PHP/CSS):** push do `main` → auto-deploy (Część B). Ręcznie: podmień pliki w `www/`
+  przez FTP, **nie nadpisuj `api/config.php` ani `pitole.sqlite`**.
+- **Zmiany schematu bazy** (`schema.sqlite.sql`): brak systemu migracji (świadoma decyzja —
+  projekt hobbystyczny). Nowe tabele/kolumny nanieś ręcznie na bazie produkcyjnej — np. pobierz
+  `pitole.sqlite` przez FTP, zastosuj DDL lokalnie (`sqlite3 pitole.sqlite < zmiana.sql`) i wgraj
+  z powrotem, albo wykonaj DDL innym narzędziem SQLite. Auto-deploy celowo **nie** rusza bazy.
 
 ## Bezpieczeństwo
 
-- `api/config.php` to plik PHP wykonywany po stronie serwera — jego treść nie jest zwracana
-  jako źródło. Trzymaj poprawne uprawnienia i nigdy nie commituj.
-- Dostęp chroniony wspólnym hasłem + sesją; wymuś HTTPS (krok 7).
+- `api/config.php` to plik PHP wykonywany po stronie serwera — treść nie jest zwracana jako
+  źródło. Nigdy nie commituj (gitignored).
+- Plik bazy `pitole.sqlite` leży w web roocie, dlatego `www/api/.htaccess` blokuje jego
+  serwowanie po HTTP. Po wdrożeniu potwierdź, że `…/api/pitole.sqlite` daje **403**.
+- Dostęp chroniony wspólnym hasłem + sesją; HTTPS wymuszony przez `www/.htaccess`.
+- Do CI używaj dedykowanego użytkownika FTP (nie głównego konta).
 
-## Brak bazy MySQL w planie
+## Wariant MySQL (opcjonalnie — płatny plan)
 
-Jeśli plan OVH nie ma żadnej bazy:
-- **Najprościej:** zmień plan hostingu na najtańszy z 1× MySQL (Perso/Pro zwykle mają) i wróć do kroku 2.
-- **Alternatywa (fallback z planu):** statyczny frontend na OVH + darmowy Postgres (Supabase).
-  Wymaga przełączenia `api/db.php` na PDO `pgsql` i osobnej konfiguracji — do ustalenia osobno.
+Gdybyś przeszedł na hosting z MySQL (np. Perso/Pro):
+1. Manager → **Bazy danych** → utwórz bazę MySQL (zapisz host, nazwę, użytkownika, hasło).
+2. **phpMyAdmin** → Import → wgraj [`schema.sql`](../schema.sql).
+3. W `api/config.php` ustaw DSN MySQL zamiast SQLite:
+   ```php
+   'db_dsn'  => 'mysql:host=xxxx.mysql.db;dbname=NAZWA;charset=utf8mb4',
+   'db_user' => 'UZYTKOWNIK',
+   'db_pass' => 'HASLO',
+   ```
+4. Rozszerzenie `pdo_mysql` musi być włączone. Reszta (frontend, deploy) bez zmian — pamiętaj
+   tylko, że wtedy `pitole.sqlite` nie jest używany.

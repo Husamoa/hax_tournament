@@ -10,7 +10,8 @@ składami i **indywidualnym** rankingiem graczy. Domena docelowa: `pitole.pl` (h
 ## Stack (świadomie prosty — pod OVH bez build-stepu)
 
 - **Backend:** PHP 8, PDO. Cienkie API JSON. Routing query-string (`api/index.php?r=...`).
-- **Baza:** MySQL na produkcji (`schema.sql`), SQLite lokalnie (`schema.sqlite.sql`).
+- **Baza:** **SQLite** — na produkcji (darmowy hosting OVH) i lokalnie (`schema.sqlite.sql`).
+  Warstwa PDO wspiera też MySQL (`schema.sql`) na wypadek przejścia na płatny plan z MySQL.
 - **Frontend:** SPA — vanilla JS (moduły ES), bez frameworka i bez builda.
 - **Dostęp:** jedno wspólne hasło ekipy → sesja PHP (cookie). Bez kont per gracz.
 
@@ -40,6 +41,8 @@ uruchomienia testów logiki lokalnie.
 | `dev-server.php` | Router **tylko do dev** (`php -S`), odtwarza układ produkcyjny |
 | `docker-compose.yml` + `Dockerfile` | Dev w Dockerze: app (PHP 8.2 + Apache) + MySQL 8 |
 | `docker/config.docker.php` | Config dla kontenera (montowany jako `api/config.php`; tylko dane dev) |
+| `.github/workflows/deploy.yml` | **Auto-deploy**: push do `main` → testy → FTPS na OVH |
+| `.github/deploy/` | Pliki `.htaccess` nakładane na produkcję przez CI (wymuszenie HTTPS, ochrona bazy) |
 
 Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`public/CLAUDE.md`](public/CLAUDE.md).
 
@@ -110,8 +113,16 @@ przy weryfikacji UI steruj przez konsolę (`element.click()`, `dispatchEvent`) i
 
 ## Wdrożenie
 
-Zobacz [`docs/deployment-ovh.md`](docs/deployment-ovh.md). W skrócie: baza MySQL w OVH →
-import `schema.sql` → `api/config.php` → wgraj `public/*` do web roota i `api/` obok → SSL.
+Produkcja: **https://pitole.pl** na **darmowym hostingu OVH 100M** (PHP 8.2, SQLite).
+Pełny runbook: [`docs/deployment-ovh.md`](docs/deployment-ovh.md).
+
+- **Pierwsze / ręczne wdrożenie:** baza SQLite ze `schema.sqlite.sql` → `api/config.php`
+  (DSN sqlite + hash hasła) → wgraj zawartość `public/` do web roota (`www/`) i `api/` obok
+  (`www/api/`) → włącz SSL (Let's Encrypt).
+- **Aktualizacje:** automatycznie — push do `main` odpala
+  [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (testy + FTPS sync na OVH).
+  Sync **nie rusza** `config.php` ani `pitole.sqlite` na serwerze.
+- **Zmiany schematu** nanoś ręcznie (brak migracji) — patrz sekcja o Dockerze wyżej i runbook.
 
 ## Konwencje
 

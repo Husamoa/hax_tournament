@@ -1,0 +1,64 @@
+name: Deploy na OVH
+
+# Push do main → testy → złożenie produkcyjnego układu → wgranie na OVH przez FTPS.
+# Wymagane sekrety (Settings → Secrets and variables → Actions):
+#   FTP_SERVER    — host FTP z OVH (Hosting → FTP-SSH), np. ftp.cluster129.hosting.ovh.net
+#   FTP_USERNAME  — login FTP
+#   FTP_PASSWORD  — hasło FTP
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Nie nakładaj równoległych deployów na siebie.
+concurrency:
+  group: deploy-ovh
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Testy logiki (bramka — nie deployujemy zepsutego)
+        run: node --test
+
+      - name: Złóż produkcyjny układ (dist/)
+        run: |
+          mkdir -p dist/api
+          # frontend: cała zawartość public/ oprócz dev-owego CLAUDE.md
+          cp -r public/. dist/
+          rm -f dist/CLAUDE.md
+          # backend: tylko pliki PHP (config.php i *.sqlite są gitignored — nie ma ich w repo)
+          cp api/index.php api/db.php dist/api/
+          # overlay Apache dla OVH (spoza public/, bo wymuszenie HTTPS psułoby dev na localhost)
+          cp .github/deploy/htaccess-www dist/.htaccess
+          cp .github/deploy/htaccess-api dist/api/.htaccess
+
+      - name: Wgraj na OVH (FTPS, sync różnicowy)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/
+          # Katalog serwowany na OVH. Główny użytkownik FTP ląduje w katalogu domowym,
+          # który zawiera www/ → zostaw "www/". Jeśli używasz użytkownika FTP z homem
+          # ustawionym wprost na www, zmień na "./".
+          server-dir: www/
+          # NIE dotykaj configu i bazy na serwerze (nie wgrywaj i nie kasuj):
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/config.php
+            **/*.sqlite
+            **/*.sqlite3

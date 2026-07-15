@@ -1,0 +1,4 @@
+# Ochrona plików bazy SQLite — nigdy nie serwować po HTTP.
+<FilesMatch "\.(sqlite|sqlite3|db)$">
+  Require all denied
+</FilesMatch>

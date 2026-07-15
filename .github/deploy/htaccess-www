@@ -1,0 +1,9 @@
+# Wymuś HTTPS (hasło ekipy leci w requestach — HTTP zabronione).
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Nie serwuj pliku stanu deployu (lista plików wgranych przez CI).
+<FilesMatch "^\.ftp-deploy-sync-state\.json$">
+  Require all denied
+</FilesMatch>

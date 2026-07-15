@@ -57,4 +57,4 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 ## Zgodność
 
 Kod celuje w PHP 8.0+ (`str_starts_with`, typy). Na OVH ustaw PHP 8.x w Managerze.
-Wymagane rozszerzenia: `pdo_mysql` (produkcja) / `pdo_sqlite` (dev), `mbstring`.
+Wymagane rozszerzenia: `pdo_sqlite` (produkcja i dev), `mbstring`. (Gdyby MySQL — `pdo_mysql`.)

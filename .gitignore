@@ -14,5 +14,8 @@ bot/.env
 *.sqlite
 *.sqlite3
 
+# Paczka wdrożeniowa na OVH (zawiera config.php z hashem i bazę) — NIGDY nie commitować
+deploy-ovh/
+
 # Claude local
 .claude/settings.local.json
