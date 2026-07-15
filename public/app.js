@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { generateSchedule, sittingOut, expectedMatchCount } from './schedule.js';
 import { computeRanking, validateScore } from './ranking.js';
 import * as stats from './stats.js';
+import { APP_VERSION } from './version.js';
 
 // ------------------------------------------------------------------ stan
 const state = {
@@ -70,6 +71,8 @@ async function refreshData() {
 
 // ------------------------------------------------------------------ init / auth
 async function init() {
+  // wersja aplikacji (jedno źródło: version.js) — ekran logowania + nagłówek
+  $$('.js-version').forEach((el) => (el.textContent = 'v' + APP_VERSION));
   // nawigacja (raz)
   $$('.tab').forEach((b) =>
     b.addEventListener('click', () => {
