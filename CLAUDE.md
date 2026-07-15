@@ -81,6 +81,12 @@ Inny port: `APP_PORT=8123 docker compose up`. Reset bazy: `docker compose down -
 Config kontenera to `docker/config.docker.php` (montowany jako `api/config.php` —
 lokalnego `api/config.php` nie nadpisuje i nie używa).
 
+**Po pullu ze zmianą w `schema.sql`** (objaw: `Base table or view not found`): schemat
+importuje się tylko przy PIERWSZYM starcie wolumenu, więc istniejąca baza nie dostaje
+nowych tabel. Napraw: `docker compose down -v` (kasuje dane dev) albo dograj brakujące
+DDL ręcznie: `tail -n +<linia> schema.sql | docker compose exec -T db mysql -upitole -ppitole pitole`.
+Nie ma systemu migracji — świadoma decyzja (projekt hobbystyczny).
+
 **Bez Dockera** — PHP 8 (np. XAMPP: `/c/xampp/php/php.exe`) + SQLite:
 ```bash
 # 1. Baza SQLite + config
