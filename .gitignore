@@ -7,6 +7,9 @@ node_modules/
 # Lokalna konfiguracja z sekretami — NIGDY nie commitować
 api/config.php
 
+# Sekrety bota headless (token pokoju) — NIGDY nie commitować
+bot/.env
+
 # Lokalna baza SQLite (dev)
 *.sqlite
 *.sqlite3

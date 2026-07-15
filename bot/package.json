@@ -1,0 +1,14 @@
+{
+  "name": "pitole-host",
+  "version": "1.0.0",
+  "description": "Host pokoju HaxBall (headless) + wysyłka wyników do Pitole",
+  "main": "host.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node host.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "node-haxball": "^2.3.0"
+  }
+}
