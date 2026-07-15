@@ -202,6 +202,23 @@ try {
             Repo::finishTournament($id, $winner !== null ? (int) $winner : null);
             out(Repo::getTournament($id));
 
+        case 'reopen':
+            require_auth();
+            if ($method !== 'POST') {
+                err('Metoda niedozwolona.', 405);
+            }
+            if ($id <= 0) {
+                err('Brak id turnieju.');
+            }
+            if (Repo::tournamentStatus($id) !== 'finished') {
+                err('Można wznowić tylko zakończony turniej.');
+            }
+            if (Repo::hasActiveTournament()) {
+                err('Najpierw zakończ aktywny turniej.', 409);
+            }
+            Repo::reopenTournament($id);
+            out(Repo::getTournament($id));
+
         case 'matches':
             require_auth();
             if ($method !== 'PATCH') {

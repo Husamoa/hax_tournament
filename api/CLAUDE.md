@@ -24,6 +24,7 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 | POST | `tournaments` | `{name?, playerIds[], matches[], status?}` | utwórz (transakcja) |
 | DELETE | `tournaments` | `&id=` | usuń (CASCADE) |
 | POST | `finish` | `&id=` + `{winner_player_id}` | zakończ turniej |
+| POST | `reopen` | `&id=` | wznów zakończony turniej (→ active, wyniki zostają); 409 gdy inny jest aktywny |
 | PATCH | `matches` | `&id=` + `{score_a, score_b}` | zapis wyniku (null,null = wyczyść) |
 | POST | `ingest` | `{room,red[],blue[],red_score,blue_score,winner,goals[]}` | **BEZ auth** — mecz z HaxBall (tamper) + auto-link do turnieju |
 | GET | `stats` | — | surowe mecze (na żywo + rzut turniejowy, dedup) + aliasy; klient liczy resztę |

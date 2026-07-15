@@ -574,6 +574,10 @@ function renderHistoryDetail() {
     <button class="btn btn-ghost" id="back">← Historia</button>
     <h2 class="section-gap">${esc(t.name || 'Turniej ' + fmtDate(t.created_at))}</h2>
     <p class="muted">${fmtDate(t.finished_at || t.created_at)} • ${t.players.length} graczy</p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="reopen">↩️ Otwórz od nowa</button>
+      <button class="btn btn-danger" id="delete">🗑️ Usuń turniej</button>
+    </div>
     <h3 class="section-gap">Tabela końcowa</h3>
     <div id="rank"></div>
     <h3 class="section-gap">Mecze</h3>
@@ -583,6 +587,8 @@ function renderHistoryDetail() {
     state.historyDetail = null;
     renderHistoria();
   });
+  $('#reopen').addEventListener('click', () => reopenFromHistory(t));
+  $('#delete').addEventListener('click', () => deleteFromHistory(t));
   renderRanking($('#rank'), t.players, t.matches);
 
   $('#hmatches').innerHTML = t.matches
@@ -601,6 +607,39 @@ function renderHistoryDetail() {
       </div>`;
     })
     .join('');
+}
+
+// Wznów zakończony turniej (wraca do aktywnego, wyniki zostają).
+async function reopenFromHistory(t) {
+  const label = t.name || 'Turniej ' + fmtDate(t.created_at);
+  if (!confirm(`Otworzyć „${label}" od nowa? Wróci do aktywnych z zachowanymi wynikami.`)) return;
+  try {
+    const active = await api.reopenTournament(t.id);
+    state.historyDetail = null;
+    state.active = active;
+    state.subtab = 'mecze';
+    await refreshData();
+    state.tab = 'turniej';
+    toast('Turniej wznowiony!');
+    render();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// Usuń zakończony turniej (nieodwracalne — kasuje też jego mecze).
+async function deleteFromHistory(t) {
+  const label = t.name || 'Turniej ' + fmtDate(t.created_at);
+  if (!confirm(`Usunąć „${label}"? Tej operacji nie można cofnąć.`)) return;
+  try {
+    await api.deleteTournament(t.id);
+    state.historyDetail = null;
+    await refreshData();
+    toast('Turniej usunięty.');
+    render();
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 // ------------------------------------------------------------------ GRACZE

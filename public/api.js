@@ -46,6 +46,7 @@ export const api = {
   createTournament: (payload) => req('POST', 'tournaments', {}, payload),
   deleteTournament: (id) => req('DELETE', 'tournaments', { id }),
   finishTournament: (id, winnerId) => req('POST', 'finish', { id }, { winner_player_id: winnerId }),
+  reopenTournament: (id) => req('POST', 'reopen', { id }),
 
   // wyniki
   setScore: (matchId, scoreA, scoreB) =>

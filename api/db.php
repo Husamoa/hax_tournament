@@ -220,6 +220,29 @@ final class Repo
         DB::pdo()->prepare('DELETE FROM tournaments WHERE id = ?')->execute([$id]);
     }
 
+    /** Cofa zakończony turniej do stanu aktywnego (wyniki meczów zostają). */
+    public static function reopenTournament(int $id): void
+    {
+        DB::pdo()
+            ->prepare("UPDATE tournaments SET status = 'active', finished_at = NULL, winner_player_id = NULL WHERE id = ?")
+            ->execute([$id]);
+    }
+
+    /** Status turnieju albo null, gdy nie istnieje. */
+    public static function tournamentStatus(int $id): ?string
+    {
+        $st = DB::pdo()->prepare('SELECT status FROM tournaments WHERE id = ?');
+        $st->execute([$id]);
+        $s = $st->fetchColumn();
+        return $s === false ? null : (string) $s;
+    }
+
+    /** Czy istnieje jakikolwiek aktywny turniej (aplikacja zakłada najwyżej jeden). */
+    public static function hasActiveTournament(): bool
+    {
+        return (bool) DB::pdo()->query("SELECT 1 FROM tournaments WHERE status = 'active' LIMIT 1")->fetchColumn();
+    }
+
     /** @return array<int,string> mapa id => name dla podanych identyfikatorów */
     private static function namesByIds(array $ids): array
     {
