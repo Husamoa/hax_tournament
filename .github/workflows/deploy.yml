@@ -42,13 +42,16 @@ jobs:
           cp .github/deploy/htaccess-www dist/.htaccess
           cp .github/deploy/htaccess-api dist/api/.htaccess
 
-      - name: Wgraj na OVH (FTPS, sync różnicowy)
+      - name: Wgraj na OVH (FTP, sync różnicowy)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
+          # Darmowy hosting OVH nie obsługuje FTPS (AUTH TLS) ani SFTP (brak SSH) — zwykły FTP.
+          # Hasło leci nieszyfrowane, dlatego użyj DEDYKOWANEGO użytkownika FTP tylko do CI
+          # (OVH → Hosting → FTP-SSH), o zakresie ograniczonym do www/.
+          protocol: ftp
           local-dir: ./dist/
           # Katalog serwowany na OVH. Główny użytkownik FTP ląduje w katalogu domowym,
           # który zawiera www/ → zostaw "www/". Jeśli używasz użytkownika FTP z homem
