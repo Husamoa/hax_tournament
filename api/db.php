@@ -108,7 +108,7 @@ final class Repo
     /**
      * Tworzy turniej w jednej transakcji: nagłówek + uczestnicy (z migawką nazw) + mecze.
      * @param array $playerIds  identyfikatory graczy z rostera
-     * @param array $matches    [{teamA:[id,id], teamB:[id,id]}, ...] (kolejność = match_no)
+     * @param array $matches    [{teamA:[id,id(,id)], teamB:[id,id(,id)]}, ...] (kolejność = match_no; 3. gracz = tryb 3v3)
      */
     public static function createTournament(?string $name, array $playerIds, array $matches, string $status): int
     {
@@ -127,15 +127,20 @@ final class Repo
                 $tp->execute([$tid, $pid, $nameById[$pid] ?? ('#' . $pid)]);
             }
 
-            // mecze
+            // mecze (a3/b3 = NULL w trybie 2v2)
             $mi = $pdo->prepare(
-                'INSERT INTO matches (tournament_id, match_no, a1_id, a2_id, b1_id, b2_id) VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO matches (tournament_id, match_no, a1_id, a2_id, a3_id, b1_id, b2_id, b3_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $no = 1;
             foreach ($matches as $m) {
                 $a = $m['teamA'];
                 $b = $m['teamB'];
-                $mi->execute([$tid, $no++, (int) $a[0], (int) $a[1], (int) $b[0], (int) $b[1]]);
+                $mi->execute([
+                    $tid, $no++,
+                    (int) $a[0], (int) $a[1], isset($a[2]) ? (int) $a[2] : null,
+                    (int) $b[0], (int) $b[1], isset($b[2]) ? (int) $b[2] : null,
+                ]);
             }
 
             $pdo->commit();
@@ -168,11 +173,15 @@ final class Repo
         $ms = $pdo->prepare('SELECT * FROM matches WHERE tournament_id = ? ORDER BY match_no');
         $ms->execute([$id]);
         $matches = array_map(static function (array $r): array {
+            // drużyna = niepuste sloty (a3/b3 są NULL w trybie 2v2); filtr PRZED castem, bo (int) null === 0
+            $team = static function (...$v): array {
+                return array_values(array_map('intval', array_filter($v, static fn ($x) => $x !== null)));
+            };
             return [
                 'id'       => (int) $r['id'],
                 'match_no' => (int) $r['match_no'],
-                'teamA'    => [(int) $r['a1_id'], (int) $r['a2_id']],
-                'teamB'    => [(int) $r['b1_id'], (int) $r['b2_id']],
+                'teamA'    => $team($r['a1_id'], $r['a2_id'], $r['a3_id']),
+                'teamB'    => $team($r['b1_id'], $r['b2_id'], $r['b3_id']),
                 'scoreA'   => $r['score_a'] !== null ? (int) $r['score_a'] : null,
                 'scoreB'   => $r['score_b'] !== null ? (int) $r['score_b'] : null,
             ];
@@ -366,7 +375,7 @@ final class Repo
         $bset = self::nameSet($blue, $amap);
 
         $rows = $pdo->query(
-            "SELECT m.id, m.tournament_id, m.a1_id, m.a2_id, m.b1_id, m.b2_id
+            "SELECT m.id, m.tournament_id, m.a1_id, m.a2_id, m.a3_id, m.b1_id, m.b2_id, m.b3_id
              FROM matches m JOIN tournaments t ON t.id = m.tournament_id
              WHERE t.status = 'active'
              ORDER BY m.tournament_id, m.match_no"
@@ -400,11 +409,12 @@ final class Repo
             }
             $tid = (int) $row['tournament_id'];
             $nm = $names[$tid] ?? [];
+            // a3/b3 są NULL w 2v2: (int) null => 0, $nm[0] nie istnieje => '', a nameSet puste odrzuca
             $teamA = self::nameSet([
-                $nm[(int) $row['a1_id']] ?? '', $nm[(int) $row['a2_id']] ?? '',
+                $nm[(int) $row['a1_id']] ?? '', $nm[(int) $row['a2_id']] ?? '', $nm[(int) $row['a3_id']] ?? '',
             ], $amap);
             $teamB = self::nameSet([
-                $nm[(int) $row['b1_id']] ?? '', $nm[(int) $row['b2_id']] ?? '',
+                $nm[(int) $row['b1_id']] ?? '', $nm[(int) $row['b2_id']] ?? '', $nm[(int) $row['b3_id']] ?? '',
             ], $amap);
 
             if ($rset === $teamA && $bset === $teamB) {
@@ -484,7 +494,7 @@ final class Repo
 
         // --- rzut meczów turniejowych (tylko z wynikiem i bez meczu na żywo) ---
         $trows = $pdo->query(
-            'SELECT m.id, m.tournament_id, m.a1_id, m.a2_id, m.b1_id, m.b2_id,
+            'SELECT m.id, m.tournament_id, m.a1_id, m.a2_id, m.a3_id, m.b1_id, m.b2_id, m.b3_id,
                     m.score_a, m.score_b, t.created_at
              FROM matches m JOIN tournaments t ON t.id = m.tournament_id
              WHERE m.score_a IS NOT NULL AND m.score_b IS NOT NULL'
@@ -512,10 +522,10 @@ final class Repo
                     'blue_score' => $b,
                     'winner'     => $a > $b ? 'red' : 'blue',
                     'red'        => array_values(array_filter([
-                        $nm[(int) $r['a1_id']] ?? null, $nm[(int) $r['a2_id']] ?? null,
+                        $nm[(int) $r['a1_id']] ?? null, $nm[(int) $r['a2_id']] ?? null, $nm[(int) $r['a3_id']] ?? null,
                     ])),
                     'blue'       => array_values(array_filter([
-                        $nm[(int) $r['b1_id']] ?? null, $nm[(int) $r['b2_id']] ?? null,
+                        $nm[(int) $r['b1_id']] ?? null, $nm[(int) $r['b2_id']] ?? null, $nm[(int) $r['b3_id']] ?? null,
                     ])),
                     'goals'      => [],
                 ];

@@ -38,7 +38,7 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 Login → Turniej:
   active? → widok aktywny (subtaby Mecze / Tabela na żywo) → „Zakończ"
   draft?  → podgląd harmonogramu (Przelosuj / Edytuj składy / Rozpocznij)
-  else    → wybór graczy → „Generuj harmonogram" → draft
+  else    → format (2v2 / 3v3-dokładnie-6) + wybór graczy → „Generuj harmonogram" → draft
 Historia → lista zakończonych → szczegóły (tabela końcowa + mecze)
 Gracze   → roster: dodaj (+ gość) / usuń (archiwizacja)
 ```
@@ -50,8 +50,9 @@ Gracze   → roster: dodaj (+ gość) / usuń (archiwizacja)
   `state.active.matches` w miejscu + „✓ zapisano". Lista NIE jest przerenderowywana przy
   wpisywaniu, żeby nie tracić fokusu.
 - **Ranking na żywo:** liczony z `state.active.matches` przy każdym wejściu w „Tabela”.
-- **Edycja składów (draft):** zmiana slotu przez `<select>`; `onSlotChange` utrzymuje 4
-  różnych graczy w meczu (swap w obrębie meczu albo wejście z ławki).
+- **Edycja składów (draft):** zmiana slotu przez `<select>`; `onSlotChange` utrzymuje
+  wszystkich różnych graczy w meczu — 4 w 2v2, 6 w 3v3 (swap w obrębie meczu albo wejście
+  z ławki; w 3v3 ławka jest pusta, więc każdy wybór to swap).
 - **Przelosuj:** nowy `seed` → `generateSchedule` na tych samych graczach.
 - **Bezpieczeństwo XSS:** wszystkie nazwy graczy przez `esc()` przed wstawieniem do HTML.
 - **Walidacja jest podwójna:** klient (`validateScore`) + serwer (PATCH `matches`).

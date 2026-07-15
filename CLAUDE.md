@@ -48,9 +48,13 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
 
 ## Reguły domenowe (niezmienniki — nie łam ich)
 
-- **Format:** partner round-robin — każda para graczy gra razem (jako drużyna) raz.
-  Gdy liczba par `C(n,2)` jest nieparzysta (n=6,7), dokładnie jedna para gra 2×.
-- **Mecz:** 2 drużyny po 2 graczy = 4 **różnych** graczy. Reszta pauzuje.
+- **Format:** partner round-robin, dwa tryby:
+  - **2v2** (4+ graczy) — każda para graczy gra razem (jako drużyna) raz. Gdy liczba par
+    `C(n,2)` jest nieparzysta (n=6,7), dokładnie jedna para gra 2×.
+  - **3v3** (dokładnie 6 graczy) — każda trójka gra razem raz: `C(6,3)/2 = 10` meczów,
+    grają wszyscy (brak pauz).
+- **Mecz:** 2 drużyny po 2 graczy (2v2, 4 różnych; reszta pauzuje) albo po 3 graczy
+  (3v3, 6 różnych). Tryb wnioskowany z długości składu — bez kolumny na `tournaments`.
 - **Punktacja:** wygrana = 3 pkt dla OBU graczy zwycięskiej drużyny, przegrana = 0.
 - **Brak remisów** — `score_a != score_b` walidowane w JS (`validateScore`) i w PHP.
 - **Ranking:** indywidualny. Sort: punkty ↓, bilans ↓, bramki zdobyte ↓.

@@ -52,7 +52,8 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 - **Migawka nazw:** `tournament_players.name_snapshot` — tabela turnieju jest odporna na
   późniejszą zmianę nazwy gracza w rosterze.
 - **Kształt danych dla frontu:** `getTournament` zwraca `matches` jako
-  `{id, match_no, teamA:[id,id], teamB:[id,id], scoreA, scoreB}` (już zmapowane z kolumn DB).
+  `{id, match_no, teamA:[id,id(,id)], teamB:[id,id(,id)], scoreA, scoreB}` (już zmapowane
+  z kolumn DB; 3. gracz tylko w trybie 3v3 — kolumny `a3_id`/`b3_id` NULL w 2v2).
 
 ## Zgodność
 

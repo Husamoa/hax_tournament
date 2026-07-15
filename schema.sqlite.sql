@@ -34,8 +34,10 @@ CREATE TABLE matches (
   match_no      INTEGER NOT NULL,
   a1_id         INTEGER NOT NULL,
   a2_id         INTEGER NOT NULL,
+  a3_id         INTEGER,           -- drużyna A, gracz 3 (NULL = tryb 2v2)
   b1_id         INTEGER NOT NULL,
   b2_id         INTEGER NOT NULL,
+  b3_id         INTEGER,           -- drużyna B, gracz 3 (NULL = tryb 2v2)
   score_a       INTEGER,
   score_b       INTEGER
 );

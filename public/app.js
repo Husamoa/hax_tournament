@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { generateSchedule, sittingOut, expectedMatchCount } from './schedule.js';
+import { generateSchedule, generateSchedule3v3, sittingOut, expectedMatchCount, expectedMatchCount3v3 } from './schedule.js';
 import { computeRanking, validateScore } from './ranking.js';
 import * as stats from './stats.js';
 import { APP_VERSION } from './version.js';
@@ -146,7 +146,8 @@ function renderTurniej() {
 
 // --- ekran wyboru graczy (nowy turniej) ---
 function renderSetup() {
-  if (!state.setup) state.setup = { name: '', selected: new Set() };
+  if (!state.setup) state.setup = { name: '', selected: new Set(), mode: '2v2' };
+  if (!state.setup.mode) state.setup.mode = '2v2';
   const roster = state.players;
   const sel = state.setup.selected;
   const n = sel.size;
@@ -160,6 +161,13 @@ function renderSetup() {
     <div class="card">
       <label class="muted">Nazwa (opcjonalnie)</label>
       <input id="t-name" type="text" placeholder="Turniej ${fmtDate(new Date().toISOString())}" value="${esc(state.setup.name)}" style="width:100%;margin-top:6px" />
+    </div>
+    <div class="card">
+      <h3>Format</h3>
+      <div class="chips" id="mode-chips">
+        <button type="button" class="chip ${state.setup.mode === '2v2' ? 'selected' : ''}" data-mode="2v2">2v2</button>
+        <button type="button" class="chip ${state.setup.mode === '3v3' ? 'selected' : ''}" data-mode="3v3">3v3 <span class="badge">6 graczy</span></button>
+      </div>
     </div>
     <div class="card">
       <h3>Kto gra?</h3>
@@ -177,7 +185,7 @@ function renderSetup() {
         <button class="btn btn-ghost" id="add-guest">Dodaj</button>
       </div>
     </div>
-    <button class="btn btn-primary btn-block" id="gen" ${n < 4 ? 'disabled' : ''}>Generuj harmonogram</button>
+    <button class="btn btn-primary btn-block" id="gen" ${(state.setup.mode === '3v3' ? n !== 6 : n < 4) ? 'disabled' : ''}>Generuj harmonogram</button>
     `
     }
   `;
@@ -187,11 +195,25 @@ function renderSetup() {
   const updateHint = () => {
     const k = state.setup.selected.size;
     const hint = $('#hint');
-    if (k < 4) hint.textContent = `Wybrano ${k} — potrzeba minimum 4.`;
-    else hint.textContent = `Wybrano ${k} graczy • ${expectedMatchCount(k)} meczów`;
-    $('#gen').disabled = k < 4;
+    if (state.setup.mode === '3v3') {
+      if (k !== 6) hint.textContent = `Tryb 3v3 wymaga dokładnie 6 graczy (wybrano ${k}).`;
+      else hint.textContent = `Wybrano 6 graczy • ${expectedMatchCount3v3()} meczów`;
+      $('#gen').disabled = k !== 6;
+    } else {
+      if (k < 4) hint.textContent = `Wybrano ${k} — potrzeba minimum 4.`;
+      else hint.textContent = `Wybrano ${k} graczy • ${expectedMatchCount(k)} meczów`;
+      $('#gen').disabled = k < 4;
+    }
   };
   updateHint();
+
+  $('#mode-chips').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip');
+    if (!b) return;
+    state.setup.mode = b.dataset.mode;
+    $$('.chip', $('#mode-chips')).forEach((c) => c.classList.toggle('selected', c === b));
+    updateHint();
+  });
 
   $('#chips').addEventListener('click', (e) => {
     const b = e.target.closest('.chip');
@@ -213,9 +235,10 @@ function renderSetup() {
   $('#gen').addEventListener('click', () => {
     const ids = [...state.setup.selected];
     const seed = randSeed();
+    const mode = state.setup.mode;
     try {
-      const matches = generateSchedule(ids, seed);
-      state.draft = { name: state.setup.name.trim(), seed, playerIds: ids, matches };
+      const matches = mode === '3v3' ? generateSchedule3v3(ids, seed) : generateSchedule(ids, seed);
+      state.draft = { name: state.setup.name.trim(), seed, mode, playerIds: ids, matches };
       state.editing = false;
       renderTurniej();
     } catch (err) {
@@ -254,7 +277,7 @@ function renderDraft() {
     <div class="row spread">
       <h2 style="margin:0">${esc(title)}</h2>
     </div>
-    <p class="muted">${d.playerIds.length} graczy • ${d.matches.length} meczów • każda para gra razem raz</p>
+    <p class="muted">${d.playerIds.length} graczy • ${d.matches.length} meczów • ${d.mode === '3v3' ? 'każda trójka gra razem raz' : 'każda para gra razem raz'}</p>
     <div class="btn-row">
       <button class="btn btn-ghost" id="reshuffle">🎲 Przelosuj</button>
       <button class="btn btn-ghost" id="toggle-edit">${state.editing ? '✓ Gotowe' : '✏️ Edytuj składy'}</button>
@@ -268,7 +291,7 @@ function renderDraft() {
 
   $('#reshuffle').addEventListener('click', () => {
     d.seed = randSeed();
-    d.matches = generateSchedule(d.playerIds, d.seed);
+    d.matches = d.mode === '3v3' ? generateSchedule3v3(d.playerIds, d.seed) : generateSchedule(d.playerIds, d.seed);
     renderDraftMatches(names);
   });
   $('#toggle-edit').addEventListener('click', () => {
@@ -300,9 +323,9 @@ function renderDraftMatches(names) {
       <div class="match">
         <div class="match-head"><span class="match-no">Mecz ${i + 1}</span></div>
         <div class="teams">
-          <div class="team">${slot('teamA', 0)}${slot('teamA', 1)}</div>
+          <div class="team">${m.teamA.map((_, p) => slot('teamA', p)).join('')}</div>
           <div class="vs">vs</div>
-          <div class="team right">${slot('teamB', 0)}${slot('teamB', 1)}</div>
+          <div class="team right">${m.teamB.map((_, p) => slot('teamB', p)).join('')}</div>
         </div>
         ${byes ? `<div class="byes">Pauzują: ${byes}</div>` : ''}
       </div>`;
@@ -319,12 +342,15 @@ function renderDraftMatches(names) {
   }
 }
 
-// zamiana gracza w slocie: utrzymuje 4 różnych graczy w meczu
+// zamiana gracza w slocie: utrzymuje wszystkich różnych graczy w meczu (4 w 2v2, 6 w 3v3)
 function onSlotChange(mi, team, pos, newId) {
   const m = state.draft.matches[mi];
   const cur = m[team][pos];
   if (newId === cur) return;
-  const slots = [['teamA', 0], ['teamA', 1], ['teamB', 0], ['teamB', 1]];
+  const slots = [
+    ...m.teamA.map((_, p) => ['teamA', p]),
+    ...m.teamB.map((_, p) => ['teamB', p]),
+  ];
   const found = slots.find(([k, p]) => m[k][p] === newId);
   if (found) m[found[0]][found[1]] = cur; // swap wewnątrz meczu
   m[team][pos] = newId; // (jeśli z ławki — po prostu wchodzi)
@@ -395,9 +421,9 @@ function renderMatches() {
           <span class="match-saved" ${done ? '' : 'style="display:none"'}>✓ zapisano</span>
         </div>
         <div class="teams">
-          <div class="team"><div class="names">${esc(names.get(m.teamA[0]))} & ${esc(names.get(m.teamA[1]))}</div></div>
+          <div class="team"><div class="names">${m.teamA.map((id) => esc(names.get(id))).join(' & ')}</div></div>
           <div class="vs">vs</div>
-          <div class="team right"><div class="names">${esc(names.get(m.teamB[0]))} & ${esc(names.get(m.teamB[1]))}</div></div>
+          <div class="team right"><div class="names">${m.teamB.map((id) => esc(names.get(id))).join(' & ')}</div></div>
         </div>
         <div class="score-inputs">
           <input type="number" inputmode="numeric" min="0" class="sa" value="${m.scoreA ?? ''}" aria-label="Bramki drużyny A" />
@@ -568,9 +594,9 @@ function renderHistoryDetail() {
       <div class="match">
         <div class="match-head"><span class="match-no">Mecz ${m.match_no}</span><span>${sc}</span></div>
         <div class="teams">
-          <div class="team"><div class="names" style="${aWon ? 'color:var(--green-dark)' : ''}">${esc(names.get(m.teamA[0]))} & ${esc(names.get(m.teamA[1]))}</div></div>
+          <div class="team"><div class="names" style="${aWon ? 'color:var(--green-dark)' : ''}">${m.teamA.map((id) => esc(names.get(id))).join(' & ')}</div></div>
           <div class="vs">vs</div>
-          <div class="team right"><div class="names" style="${bWon ? 'color:var(--green-dark)' : ''}">${esc(names.get(m.teamB[0]))} & ${esc(names.get(m.teamB[1]))}</div></div>
+          <div class="team right"><div class="names" style="${bWon ? 'color:var(--green-dark)' : ''}">${m.teamB.map((id) => esc(names.get(id))).join(' & ')}</div></div>
         </div>
       </div>`;
     })

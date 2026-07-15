@@ -38,18 +38,23 @@ Założenie: jeden turniej `active` naraz.
 `name_snapshot` sprawia, że tabela archiwalnego turnieju jest odporna na późniejszą zmianę
 nazwy w rosterze.
 
-### `matches` — mecze 2v2 + wyniki
+### `matches` — mecze 2v2/3v3 + wyniki
 | Kolumna | Typ | Opis |
 |---|---|---|
 | `id` | PK | |
 | `tournament_id` | FK | (indeks) |
 | `match_no` | INT | kolejność w harmonogramie |
-| `a1_id`, `a2_id` | FK→players | drużyna A |
-| `b1_id`, `b2_id` | FK→players | drużyna B |
+| `a1_id`, `a2_id` | INT | drużyna A |
+| `a3_id` | INT NULL | drużyna A, gracz 3 — **NULL = tryb 2v2** |
+| `b1_id`, `b2_id` | INT | drużyna B |
+| `b3_id` | INT NULL | drużyna B, gracz 3 — **NULL = tryb 2v2** |
 | `score_a`, `score_b` | INT NULL | NULL = mecz jeszcze nierozegrany |
 
-**Pauzujący** = uczestnicy turnieju minus 4 gracze meczu → **wyliczane** (brak tabeli),
-w JS przez `sittingOut()`.
+**Tryb** (2v2/3v3) nie jest przechowywany — wnioskowany z `a3_id IS NOT NULL` (backend) /
+długości `teamA` (frontend). Brak kolumny trybu na `tournaments`.
+
+**Pauzujący** = uczestnicy turnieju minus grający → **wyliczane** (brak tabeli),
+w JS przez `sittingOut()`. W 3v3 (dokładnie 6 graczy) nikt nie pauzuje.
 
 `ON DELETE CASCADE`: usunięcie turnieju kasuje jego `tournament_players` i `matches`.
 
@@ -114,7 +119,7 @@ zlinkowanego. To zapobiega dublowaniu w statystykach.
   id, name, status, created_at, finished_at, winner_player_id,
   players: [{ id, name }],                 // z name_snapshot
   matches: [{ id, match_no,
-              teamA:[id,id], teamB:[id,id],
-              scoreA, scoreB }]            // zmapowane z kolumn a1..b2 / score_*
+              teamA:[id,id(,id)], teamB:[id,id(,id)],   // 3. gracz tylko w trybie 3v3
+              scoreA, scoreB }]            // zmapowane z kolumn a1..b3 / score_*
 }
 ```

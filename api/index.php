@@ -156,8 +156,24 @@ try {
                     err('Brak meczów w harmonogramie.');
                 }
                 foreach ($matches as $m) {
-                    if (!isset($m['teamA'][0], $m['teamA'][1], $m['teamB'][0], $m['teamB'][1])) {
+                    $a = $m['teamA'] ?? null;
+                    $tb = $m['teamB'] ?? null;
+                    if (!is_array($a) || !is_array($tb)) {
                         err('Niepoprawny format meczu.');
+                    }
+                    $size = count($a);
+                    if (($size !== 2 && $size !== 3) || count($tb) !== $size) {
+                        err('Drużyny muszą liczyć po 2 albo 3 graczy.');
+                    }
+                    $ids = [];
+                    foreach (array_merge($a, $tb) as $pid) {
+                        if (!is_numeric($pid) || (int) $pid <= 0) {
+                            err('Niepoprawny format meczu.');
+                        }
+                        $ids[] = (int) $pid;
+                    }
+                    if (count(array_unique($ids)) !== 2 * $size) {
+                        err('Gracze w meczu muszą być różni.');
                     }
                 }
                 $name = isset($b['name']) && trim((string) $b['name']) !== '' ? trim((string) $b['name']) : null;

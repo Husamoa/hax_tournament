@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateSchedule, sittingOut, expectedMatchCount } from '../public/schedule.js';
+import {
+  generateSchedule,
+  generateSchedule3v3,
+  sittingOut,
+  expectedMatchCount,
+  expectedMatchCount3v3,
+} from '../public/schedule.js';
 
 const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
 const C = (n) => (n * (n - 1)) / 2;
@@ -86,4 +92,46 @@ test('generator: ten sam seed daje identyczny harmonogram', () => {
   const a = generateSchedule([10, 20, 30, 40, 50, 60], 777);
   const b = generateSchedule([10, 20, 30, 40, 50, 60], 777);
   assert.deepEqual(a, b);
+});
+
+// ------------------------------------------------------------------ tryb 3v3
+
+const trioKey = (t) => [...t].sort((x, y) => x - y).join('|');
+
+test('3v3: 10 meczów, komplet 6 graczy w każdym, każda trójka dokładnie raz', () => {
+  const players = [10, 20, 30, 40, 50, 60];
+  for (let seed = 1; seed <= 200; seed++) {
+    const schedule = generateSchedule3v3(players, seed);
+
+    // 1) liczba meczów
+    assert.equal(schedule.length, expectedMatchCount3v3(), `seed=${seed}: liczba meczów`);
+
+    const trios = new Set();
+    for (const m of schedule) {
+      // 2) drużyny po 3, mecz = 6 różnych graczy (grają wszyscy)
+      assert.equal(m.teamA.length, 3, `seed=${seed}: teamA po 3`);
+      assert.equal(m.teamB.length, 3, `seed=${seed}: teamB po 3`);
+      assert.equal(new Set([...m.teamA, ...m.teamB]).size, 6, `seed=${seed}: 6 różnych graczy`);
+
+      // 3) brak pauzujących
+      assert.deepEqual(sittingOut(m, players), [], `seed=${seed}: brak pauz`);
+
+      trios.add(trioKey(m.teamA));
+      trios.add(trioKey(m.teamB));
+    }
+
+    // 4) 20 wpisów trójek, 20 różnych => każda z C(6,3) trójek dokładnie raz
+    assert.equal(trios.size, 20, `seed=${seed}: każda trójka gra razem dokładnie raz`);
+  }
+});
+
+test('3v3: ten sam seed daje identyczny harmonogram', () => {
+  const a = generateSchedule3v3([1, 2, 3, 4, 5, 6], 777);
+  const b = generateSchedule3v3([1, 2, 3, 4, 5, 6], 777);
+  assert.deepEqual(a, b);
+});
+
+test('3v3: inna liczba graczy niż 6 = błąd', () => {
+  assert.throws(() => generateSchedule3v3([1, 2, 3, 4, 5], 1), /dokładnie 6/i);
+  assert.throws(() => generateSchedule3v3([1, 2, 3, 4, 5, 6, 7], 1), /dokładnie 6/i);
 });

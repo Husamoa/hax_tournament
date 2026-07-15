@@ -65,6 +65,27 @@ test('computeRanking: sortowanie punkty → bilans → bramki zdobyte', () => {
   assert.deepEqual(r.map((x) => x.place), [1, 2, 3, 4]);
 });
 
+test('computeRanking: drużyny 3-osobowe (tryb 3v3) liczone tak samo', () => {
+  const participants = [1, 2, 3, 4, 5, 6].map((id) => ({ id, name: `G${id}` }));
+  const matches = [{ teamA: [1, 2, 3], teamB: [4, 5, 6], scoreA: 5, scoreB: 3 }];
+  const r = computeRanking(participants, matches);
+  const byId = new Map(r.map((x) => [x.id, x]));
+  for (const id of [1, 2, 3]) {
+    const s = byId.get(id);
+    assert.equal(s.points, 3, `gracz ${id}: 3 pkt za wygraną`);
+    assert.equal(s.played, 1);
+    assert.equal(s.gf, 5);
+    assert.equal(s.ga, 3);
+    assert.equal(s.diff, 2);
+  }
+  for (const id of [4, 5, 6]) {
+    const s = byId.get(id);
+    assert.equal(s.points, 0, `gracz ${id}: 0 pkt za przegraną`);
+    assert.equal(s.played, 1);
+    assert.equal(s.diff, -2);
+  }
+});
+
 test('computeRanking: pomija mecze bez wyniku i ewentualne remisy', () => {
   const participants = [
     { id: 1, name: 'A' },

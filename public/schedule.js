@@ -1,13 +1,16 @@
-// Generator harmonogramu turnieju HaxBall 2v2 — "partner round-robin".
+// Generatory harmonogramów turniejów HaxBall — "partner round-robin".
 //
-// Cel: każda para graczy gra razem (jako drużyna) możliwie dokładnie raz.
-// Mecz = 2 rozłączne pary (4 różnych graczy). Pozostali pauzują.
+// Tryb 2v2 (generateSchedule): każda para graczy gra razem (jako drużyna) możliwie
+// dokładnie raz. Mecz = 2 rozłączne pary (4 różnych graczy). Pozostali pauzują.
 //
-// Matematyka: liczba par to C(n,2). Każdy mecz zużywa 2 pary.
+// Matematyka 2v2: liczba par to C(n,2). Każdy mecz zużywa 2 pary.
 //   - C(n,2) parzyste  -> każda para dokładnie 1x, meczów = C(n,2)/2
 //   - C(n,2) nieparzyste -> +1 mecz, jedna para 2x, meczów = (C(n,2)+1)/2
 // Formalnie: skojarzenie doskonałe w grafie Kneshera K(n,2)
 // (wierzchołki = pary graczy, krawędź = pary rozłączne).
+//
+// Tryb 3v3 (generateSchedule3v3): DOKŁADNIE 6 graczy, każda trójka gra razem raz.
+// C(6,3)=20 trójek -> 10 komplementarnych podziałów -> 10 meczów, grają wszyscy (brak pauz).
 //
 // Moduł jest importowany zarówno w przeglądarce (public/app.js) jak i w testach Node
 // (tests/schedule.test.js) — czysta logika, bez zależności od DOM.
@@ -169,14 +172,52 @@ export function generateSchedule(playerIds, seed = 1) {
   }));
 }
 
-/** Gracze pauzujący w danym meczu = wszyscy uczestnicy minus 4 grających. */
+/**
+ * Wygeneruj harmonogram 3v3 dla DOKŁADNIE 6 graczy: każda trójka gra razem (jako drużyna) raz.
+ * C(6,3)=20 trójek -> 10 komplementarnych podziałów -> 10 meczów; grają wszyscy (brak pauz).
+ * Kanonizacja podziału: drużyna zawierająca gracza o indeksie 0 + jej dopełnienie — to daje
+ * dokładnie C(5,2)=10 unikalnych podziałów, a każda z 20 trójek pojawia się dokładnie raz.
+ * @param {Array} playerIds - lista identyfikatorów graczy, dokładnie 6.
+ * @param {number} seed - ziarno losowości (nowe ziarno = "Przelosuj").
+ * @returns {Array<{teamA:[any,any,any], teamB:[any,any,any]}>} lista meczów w kolejności rozgrywania.
+ */
+export function generateSchedule3v3(playerIds, seed = 1) {
+  if (playerIds.length !== 6) throw new Error('Tryb 3v3 wymaga dokładnie 6 graczy.');
+  const rng = makeRng(seed);
+
+  // Wszystkie podziały na dwie trójki (na indeksach): [0,i,j] + dopełnienie.
+  const splits = [];
+  for (let i = 1; i < 6; i++) {
+    for (let j = i + 1; j < 6; j++) {
+      splits.push([
+        [0, i, j],
+        [1, 2, 3, 4, 5].filter((k) => k !== i && k !== j),
+      ]);
+    }
+  }
+
+  shuffleInPlace(splits, rng); // kolejność meczów
+  return splits.map(([a, b]) => {
+    if (rng() < 0.5) [a, b] = [b, a]; // losowa strona — gracz 0 nie zawsze w drużynie A
+    shuffleInPlace(a, rng); // kolejność nazwisk w drużynie
+    shuffleInPlace(b, rng);
+    return { teamA: a.map((k) => playerIds[k]), teamB: b.map((k) => playerIds[k]) };
+  });
+}
+
+/** Gracze pauzujący w danym meczu = wszyscy uczestnicy minus grający. */
 export function sittingOut(match, allPlayerIds) {
   const playing = new Set([...match.teamA, ...match.teamB]);
   return allPlayerIds.filter((id) => !playing.has(id));
 }
 
-/** Oczekiwana liczba meczów dla n graczy (do walidacji/informacji w UI). */
+/** Oczekiwana liczba meczów 2v2 dla n graczy (do walidacji/informacji w UI). */
 export function expectedMatchCount(n) {
   const pairs = (n * (n - 1)) / 2;
   return Math.ceil(pairs / 2);
+}
+
+/** Oczekiwana liczba meczów 3v3 (zdefiniowane tylko dla 6 graczy): C(6,3)/2 = 10. */
+export function expectedMatchCount3v3() {
+  return 10;
 }

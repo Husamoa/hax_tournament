@@ -1,9 +1,9 @@
 {
   "name": "pitole-turniej",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Aplikacja turniejowa HaxBall 2v2 dla ekipy Pitole (partner round-robin + ranking indywidualny)",
+  "description": "Aplikacja turniejowa HaxBall 2v2/3v3 dla ekipy Pitole (partner round-robin + ranking indywidualny)",
   "scripts": {
     "test": "node --test"
   }

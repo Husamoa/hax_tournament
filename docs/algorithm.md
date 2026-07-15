@@ -2,7 +2,10 @@
 
 Implementacja: [`public/schedule.js`](../public/schedule.js). Testy: [`tests/schedule.test.js`](../tests/schedule.test.js).
 
-## Cel
+Dwa tryby: **2v2** (`generateSchedule`, 4+ graczy) i **3v3** (`generateSchedule3v3`,
+dokładnie 6 graczy — sekcja na końcu).
+
+## Cel (2v2)
 
 Każda **para** graczy ma zagrać razem (jako drużyna) możliwie dokładnie raz. Jeden mecz to
 **2 rozłączne pary** (4 różnych graczy); pozostali pauzują. Pauzy rozłożone możliwie równo.
@@ -52,10 +55,31 @@ graczy, krawędź = pary rozłączne). Dla parzystego `C(n,2)` i `n ≥ 4` zawsz
 
 Generator działa też dla większych `n` (przetestowane 9–12).
 
+## Tryb 3v3 (`generateSchedule3v3`) — dokładnie 6 graczy
+
+Ta sama zasada co 2v2, ale dla trójek: **każda trójka gra razem (jako drużyna) dokładnie raz**.
+
+**Matematyka:** trójek jest `C(6,3) = 20`. Przy 6 graczach drużyny meczu są komplementarne
+(trójka + jej dopełnienie), więc podziałów na dwie trójki jest `20/2 = 10` → **10 meczów**,
+w każdym grają **wszyscy** (zero pauz — dlatego nie ma tu heurystyki rozkładania pauz).
+
+**Kroki:**
+1. Kanonizacja podziału: enumeruj pary `{i,j}` z indeksów 1..5 → drużyna `[0,i,j]` +
+   dopełnienie. To daje dokładnie `C(5,2) = 10` unikalnych podziałów, a każda z 20 trójek
+   występuje dokładnie raz (10 kanonicznych z graczem 0 + ich 10 dopełnień).
+2. Seedowany shuffle kolejności meczów + losowa strona (A/B) + kolejność nazwisk w drużynie
+   (ten sam `mulberry32`; „Przelosuj" = nowy seed).
+
+**Niezmienniki (weryfikowane testami):** 10 meczów; każdy mecz = 6 różnych graczy (3+3,
+`sittingOut = []`); zbiór trójek ze wszystkich meczów ma moc 20 ⇒ każda trójka dokładnie raz;
+determinizm po seedzie; `n ≠ 6` → błąd.
+
+Inne `n` dla 3v3 świadomie nieobsługiwane (np. n=7 wymagałby pauz i innej kombinatoryki).
+
 ## Poza zakresem (możliwe rozszerzenie)
 
 Balansowanie **przeciwników** (kto z kim gra przeciw komu). Wymóg to tylko: każda para
-partneruje ≥1× + równe pauzy. Dobór przeciwników jest pochodną skojarzenia.
+(2v2) / trójka (3v3) partneruje ≥1× + równe pauzy. Dobór przeciwników jest pochodną skojarzenia.
 
 ## Jak przetestować
 

@@ -33,15 +33,17 @@ CREATE TABLE tournament_players (
   CONSTRAINT fk_tp_p FOREIGN KEY (player_id)     REFERENCES players(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Mecze 2v2 + wyniki. Pauzujący = uczestnicy turnieju minus 4 gracze meczu (wyliczane).
+-- Mecze 2v2/3v3 + wyniki. Pauzujący = uczestnicy turnieju minus grający (wyliczane).
 CREATE TABLE matches (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   tournament_id INT NOT NULL,
   match_no      INT NOT NULL,      -- kolejność w harmonogramie
   a1_id         INT NOT NULL,      -- drużyna A, gracz 1
   a2_id         INT NOT NULL,      -- drużyna A, gracz 2
+  a3_id         INT NULL,          -- drużyna A, gracz 3 (NULL = tryb 2v2)
   b1_id         INT NOT NULL,      -- drużyna B, gracz 1
   b2_id         INT NOT NULL,      -- drużyna B, gracz 2
+  b3_id         INT NULL,          -- drużyna B, gracz 3 (NULL = tryb 2v2)
   score_a       INT NULL,          -- bramki drużyny A (NULL = jeszcze nierozegrany)
   score_b       INT NULL,          -- bramki drużyny B
   CONSTRAINT fk_m_t FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
