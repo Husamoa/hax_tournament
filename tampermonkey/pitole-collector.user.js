@@ -18,7 +18,7 @@
   // === KONFIGURACJA ===
   // Adres aplikacji Pitole (BEZ końcowego /). Lokalnie: "http://127.0.0.1:8099".
   // Produkcja: "https://pitole.pl". Jeśli zmienisz domenę — dopisz ją też w @connect wyżej.
-  const BASE = "http://localhost:8090";
+  const BASE = "https://pitole.pl";
   const INGEST = BASE + "/api/index.php?r=ingest";
 
   // Gra działa w iframe (game.html) bez ?c=; token pokoju jest w ramce nadrzędnej (ten sam
