@@ -75,11 +75,12 @@ function winRate(wins, matches) {
 }
 
 // ------------------------------------------------------------------ Elo
-/** Globalny Elo per gracz, odtworzony chronologicznie. Oczekiwany wynik ze średniej
- *  oceny drużyny — radzi sobie z różnymi rozmiarami drużyn. */
-export function eloRatings(matches) {
+/** Odtwarza Elo chronologicznie. Zwraca końcowe oceny + deltę per mecz per gracz.
+ *  Oczekiwany wynik ze średniej oceny drużyny + handicap liczebności (radzi sobie z 3v2 itp.). */
+function eloReplay(matches) {
   const ratings = new Map();
   const get = (p) => (ratings.has(p) ? ratings.get(p) : ELO_BASE);
+  const deltas = new Map(); // id meczu -> Map(gracz -> delta)
   const sorted = [...matches].sort((a, b) => a.started_at - b.started_at);
   for (const m of sorted) {
     if (!m.red.length || !m.blue.length) continue;
@@ -88,10 +89,24 @@ export function eloRatings(matches) {
     const rb = m.blue.reduce((s, p) => s + get(p), 0) / m.blue.length - adv;
     const ea = 1 / (1 + 10 ** ((rb - ra) / 400));
     const sa = m.winner === 'red' ? 1 : 0;
-    for (const p of m.red) ratings.set(p, get(p) + ELO_K * (sa - ea));
-    for (const p of m.blue) ratings.set(p, get(p) + ELO_K * (1 - sa - (1 - ea)));
+    const dRed = ELO_K * (sa - ea);
+    const dBlue = ELO_K * (1 - sa - (1 - ea));
+    const dm = new Map();
+    for (const p of m.red) { ratings.set(p, get(p) + dRed); dm.set(p, dRed); }
+    for (const p of m.blue) { ratings.set(p, get(p) + dBlue); dm.set(p, dBlue); }
+    deltas.set(m.id, dm);
   }
-  return ratings;
+  return { ratings, deltas };
+}
+
+/** Globalny Elo per gracz (końcowe oceny), odtworzony chronologicznie. */
+export function eloRatings(matches) {
+  return eloReplay(matches).ratings;
+}
+
+/** Delta Elo per mecz per gracz: Map(id_meczu -> Map(nick -> zmiana)). */
+export function eloDeltas(matches) {
+  return eloReplay(matches).deltas;
 }
 
 // ------------------------------------------------------------------ leaderboard

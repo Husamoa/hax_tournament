@@ -241,6 +241,10 @@ table.rank td.pts { font-weight: 700; }
 .pname { color: var(--green-dark); cursor: pointer; text-decoration: none; }
 .pname:hover { text-decoration: underline; }
 .team .names.win { color: var(--green-dark); font-weight: 700; }
+.pl-row { display: block; }
+.elo-delta { font-size: 0.8rem; font-weight: 600; }
+.elo-delta.up { color: var(--green); }
+.elo-delta.down { color: var(--danger); }
 
 .src-badge {
   font-size: 0.68rem;

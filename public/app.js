@@ -972,10 +972,19 @@ function renderStatRanking(box) {
 // --- Historia meczów (rozwijalne gole) ---
 function renderStatMatches(box) {
   const ms = [...state.statsMatches].sort((a, b) => b.started_at - a.started_at);
-  const teamHtml = (names, cls) =>
-    `<span class="${cls}">${names.map((n) => `<a class="pname">${esc(n)}</a>`).join(' & ')}</span>`;
+  const deltas = stats.eloDeltas(countedStats()); // delta Elo per mecz (tylko mecze liczone)
+  const teamHtml = (names, cls, dm) =>
+    `<span class="${cls}">${names
+      .map((n) => {
+        const d = dm ? dm.get(n) : undefined;
+        const badge = d !== undefined
+          ? ` <span class="elo-delta ${d >= 0 ? 'up' : 'down'}">(${signed(Math.round(d))})</span>` : '';
+        return `<span class="pl-row"><a class="pname">${esc(n)}</a>${badge}</span>`;
+      })
+      .join('')}</span>`;
   box.innerHTML = ms
     .map((m) => {
+      const dm = deltas.get(m.id);
       const open = state.statsExpanded.has(m.id);
       const src = m.source === 'live' ? '<span class="src-badge live">na żywo</span>' : '<span class="src-badge">turniej</span>';
       const uncounted = !(m.red.length >= 2 && m.blue.length >= 2)
@@ -996,9 +1005,9 @@ function renderStatMatches(box) {
           <span>${toggle}</span>
         </div>
         <div class="teams">
-          <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names')}</div>
+          <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names', dm)}</div>
           <div class="vs">${m.red_score} : ${m.blue_score}</div>
-          <div class="team right">${teamHtml(m.blue, m.winner === 'blue' ? 'names win' : 'names')}</div>
+          <div class="team right">${teamHtml(m.blue, m.winner === 'blue' ? 'names win' : 'names', dm)}</div>
         </div>
         <button class="link-btn toggle-goals" data-id="${m.id}" style="color:var(--green-dark);margin-top:6px">${open ? 'ukryj' : 'szczegóły'}</button>
         ${open ? goals : ''}

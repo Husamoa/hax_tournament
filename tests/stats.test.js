@@ -53,6 +53,16 @@ test('counted: wyklucza 1v1 i 2v1, zostawia 2v2 i 3v2', () => {
   assert.deepEqual(stats.counted(ms).map((x) => x.id), ['L1', 'L2']);
 });
 
+test('eloDeltas: zwycięzcy plus, przegrani minus, zgodne z eloRatings', () => {
+  const ms = [m('L1', ['Ala', 'Bea'], ['C', 'D'], 3, 0)];
+  const dm = stats.eloDeltas(ms).get('L1');
+  assert.ok(dm.get('Ala') > 0 && dm.get('Bea') > 0);
+  assert.ok(dm.get('C') < 0 && dm.get('D') < 0);
+  // delta = ocena końcowa − baza (1 mecz)
+  const elo = stats.eloRatings(ms);
+  assert.ok(Math.abs((1000 + dm.get('Ala')) - elo.get('Ala')) < 1e-9);
+});
+
 test('elo: przewaga liczebna — wygrana słabszej liczebnie waży więcej niż silniejszej', () => {
   // 3v2, równe oceny startowe. Underdog (dwójka) wygrywa vs faworyt (trójka) wygrywa.
   const under = stats.eloRatings([m('L1', ['A', 'B', 'C'], ['D', 'E'], 0, 1)]); // dwójka (blue) wygrywa
