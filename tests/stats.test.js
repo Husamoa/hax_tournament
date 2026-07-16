@@ -17,31 +17,50 @@ function m(id, red, blue, rs, bs, startedAt = 1000, goals = []) {
   };
 }
 
-test('leaderboard: punkty 3/wygraną, bilans i BZ/BS', () => {
+test('leaderboard: mecze/wygrane, bilans i BZ/BS, ranking po ELO', () => {
   const ms = [m('L1', ['Ala', 'Bea'], ['Cezary', 'Dawid'], 5, 2)];
   const rows = stats.leaderboard(ms);
   const by = Object.fromEntries(rows.map((r) => [r.name, r]));
-  assert.equal(by.Ala.points, 3);
   assert.equal(by.Ala.wins, 1);
   assert.equal(by.Ala.gf, 5);
   assert.equal(by.Ala.ga, 2);
   assert.equal(by.Ala.goal_diff, 3);
-  assert.equal(by.Cezary.points, 0);
   assert.equal(by.Cezary.losses, 1);
   assert.equal(rows[0].place, 1);
+  assert.ok(rows[0].elo >= rows[1].elo); // sort po ELO
+  assert.equal(by.Ala.points, undefined); // punkty tylko w turniejach
 });
 
-test('leaderboard: gole i asysty ze strzelców, samobój liczony osobno', () => {
+test('leaderboard: gole/asysty przeniesione do profilu gracza (nie w globalnej tabeli)', () => {
   const goals = [
     { time: 10, team: 'red', scorer: 'Ala', assist: 'Bea', own_goal: false },
     { time: 20, team: 'red', scorer: 'Cezary', assist: null, own_goal: true },
   ];
-  const rows = stats.leaderboard([m('L1', ['Ala', 'Bea'], ['Cezary', 'Dawid'], 2, 0, 1000, goals)]);
-  const by = Object.fromEntries(rows.map((r) => [r.name, r]));
-  assert.equal(by.Ala.goals, 1);
-  assert.equal(by.Bea.assists, 1);
-  assert.equal(by.Cezary.own_goals, 1);
-  assert.equal(by.Cezary.goals, 0);
+  const ms = [m('L1', ['Ala', 'Bea'], ['Cezary', 'Dawid'], 2, 0, 1000, goals)];
+  assert.equal(stats.playerDetail(ms, 'Ala').stats.goals, 1);
+  assert.equal(stats.playerDetail(ms, 'Bea').stats.assists, 1);
+  assert.equal(stats.playerDetail(ms, 'Cezary').stats.own_goals, 1);
+  assert.equal(stats.playerDetail(ms, 'Cezary').stats.goals, 0);
+});
+
+test('counted: wyklucza 1v1 i 2v1, zostawia 2v2 i 3v2', () => {
+  const ms = [
+    m('L1', ['A', 'B'], ['C', 'D'], 3, 1),            // 2v2 — zostaje
+    m('L2', ['A', 'B', 'C'], ['D', 'E'], 4, 2),       // 3v2 — zostaje
+    m('L3', ['A'], ['B'], 2, 0),                       // 1v1 — out
+    m('L4', ['A', 'B'], ['C'], 3, 0),                  // 2v1 — out
+  ];
+  assert.deepEqual(stats.counted(ms).map((x) => x.id), ['L1', 'L2']);
+});
+
+test('elo: przewaga liczebna — wygrana słabszej liczebnie waży więcej niż silniejszej', () => {
+  // 3v2, równe oceny startowe. Underdog (dwójka) wygrywa vs faworyt (trójka) wygrywa.
+  const under = stats.eloRatings([m('L1', ['A', 'B', 'C'], ['D', 'E'], 0, 1)]); // dwójka (blue) wygrywa
+  const fav = stats.eloRatings([m('L1', ['A', 'B', 'C'], ['D', 'E'], 1, 0)]);   // trójka (red) wygrywa
+  const underGain = under.get('D') - 1000; // gracz zwycięskiej dwójki
+  const favGain = fav.get('A') - 1000;     // gracz zwycięskiej trójki
+  assert.ok(underGain > favGain, `underdog ${underGain} powinno być > faworyt ${favGain}`);
+  assert.ok(favGain > 0 && favGain < underGain);
 });
 
 test('aliasy: scalają statystyki pod aktualnym nickiem', () => {

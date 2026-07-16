@@ -183,6 +183,12 @@ input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
 .byes { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
 .match .error { margin-top: 6px; }
 
+/* wajcha auto-uzupełniania + podświetlenie świeżo wpisanego wyniku */
+.autofill-toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 0.9rem; cursor: pointer; }
+.autofill-toggle input { width: 18px; height: 18px; accent-color: var(--green); }
+.match.live-flash { animation: live-flash 1.5s ease-out; }
+@keyframes live-flash { from { background: var(--green-light); } to { background: var(--card); } }
+
 /* edycja składów */
 .slot-select { width: 100%; font: inherit; padding: 8px; border: 1px dashed var(--green); border-radius: 8px; background: var(--green-light); }
 
@@ -191,6 +197,8 @@ input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
 table.rank { border-collapse: collapse; width: 100%; background: var(--card); font-size: 0.9rem; }
 table.rank th, table.rank td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap; }
 table.rank th { background: var(--green-light); color: var(--green-dark); position: sticky; top: 0; font-weight: 700; }
+table.rank th.sortable { cursor: pointer; user-select: none; }
+table.rank th.sorted { text-decoration: underline; }
 table.rank td.name, table.rank th.name { text-align: left; font-weight: 600; }
 table.rank tr.leader td { background: #fffbea; }
 table.rank td.pts { font-weight: 700; }

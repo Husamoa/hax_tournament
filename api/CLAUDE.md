@@ -29,7 +29,7 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 | POST | `ingest` | `{room,red[],blue[],red_score,blue_score,winner,goals[]}` | **BEZ auth** — mecz z HaxBall (tamper) + auto-link do turnieju |
 | GET | `stats` | — | surowe mecze (na żywo + rzut turniejowy, dedup) + aliasy; klient liczy resztę |
 | GET/POST/DELETE | `aliases` | `{alias,canonical}` / `&alias=` | scalanie nicków |
-| DELETE | `stat_matches` | `&id=` | usuń mecz na żywo ze statystyk |
+| PATCH | `stat_matches` | `&id=` + `{is_training}` | oznacz mecz na żywo treningowy (1) / oficjalny (0) — odwracalne, bez usuwania |
 
 Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 

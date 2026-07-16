@@ -14,6 +14,7 @@ declare(strict_types=1);
  *   GET    api/index.php?r=tournaments               (lista)
  *   GET    api/index.php?r=tournaments&id=ID          (szczegóły)
  *   POST   api/index.php?r=tournaments      {name?, playerIds:[], matches:[], status?}
+ *   PATCH  api/index.php?r=tournaments&id=ID {auto_fill}   (wajcha auto-uzupełniania z pokoju)
  *   DELETE api/index.php?r=tournaments&id=ID
  *   POST   api/index.php?r=finish&id=ID     {winner_player_id}
  *   PATCH  api/index.php?r=matches&id=ID    {score_a, score_b}   (null,null = wyczyść)
@@ -22,7 +23,7 @@ declare(strict_types=1);
  *   GET    api/index.php?r=aliases
  *   POST   api/index.php?r=aliases         {alias, canonical}   (scalanie nicków)
  *   DELETE api/index.php?r=aliases&alias=NICK
- *   DELETE api/index.php?r=stat_matches&id=ID
+ *   PATCH  api/index.php?r=stat_matches&id=ID  {is_training}  (oznacz treningowy/oficjalny)
  *
  * Wszystko poza session/login/ingest wymaga zalogowania (wspólne hasło ekipy -> sesja).
  */
@@ -181,6 +182,17 @@ try {
                 $tid = Repo::createTournament($name, $playerIds, $matches, $status);
                 out(Repo::getTournament($tid), 201);
             }
+            if ($method === 'PATCH') {
+                if ($id <= 0) {
+                    err('Brak id turnieju.');
+                }
+                $b = body_json();
+                if (!array_key_exists('auto_fill', $b)) {
+                    err('Brak pola auto_fill.');
+                }
+                Repo::setAutoFill($id, !empty($b['auto_fill']));
+                out(['ok' => true, 'auto_fill' => !empty($b['auto_fill']) ? 1 : 0]);
+            }
             if ($method === 'DELETE') {
                 if ($id <= 0) {
                     err('Brak id turnieju.');
@@ -284,13 +296,14 @@ try {
 
         case 'stat_matches':
             require_auth();
-            if ($method !== 'DELETE') {
+            if ($method !== 'PATCH') {
                 err('Metoda niedozwolona.', 405);
             }
             if ($id <= 0) {
                 err('Brak id meczu.');
             }
-            Repo::deleteStatMatch($id);
+            $b = body_json();
+            Repo::setStatMatchTraining($id, !empty($b['is_training']));
             out(['ok' => true]);
 
         case 'aliases':

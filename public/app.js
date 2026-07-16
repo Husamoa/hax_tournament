@@ -24,6 +24,7 @@ const state = {
   statsDay: null, // filtr dnia (YYYY-MM-DD) w rankingu
   statsPlayer: null, // wybrany gracz (profil)
   statsExpanded: new Set(), // rozwinięte mecze (id) w historii statystyk
+  statsSort: { col: 'elo', dir: 'desc' }, // sortowanie tabeli rankingu (klik nagłówka)
   h2hA: null,
   h2hB: null,
 };
@@ -76,12 +77,14 @@ async function init() {
   // nawigacja (raz)
   $$('.tab').forEach((b) =>
     b.addEventListener('click', () => {
+      stopLivePoll();
       state.tab = b.dataset.tab;
       state.historyDetail = null;
       render();
     }),
   );
   $('#logout-btn').addEventListener('click', async () => {
+    stopLivePoll();
     await api.logout();
     state.authed = false;
     showLogin();
@@ -388,6 +391,10 @@ function renderActive() {
       <button class="btn btn-danger" id="finish">Zakończ</button>
     </div>
     <p class="muted">${t.players.length} graczy • ${t.matches.length} meczów</p>
+    <label class="autofill-toggle">
+      <input type="checkbox" id="autofill" ${t.auto_fill ? 'checked' : ''} />
+      <span>⚡ Auto-uzupełnianie wyników z pokoju HaxBall</span>
+    </label>
     <div class="subtabs">
       <div class="subtab ${state.subtab === 'mecze' ? 'active' : ''}" data-sub="mecze">Mecze</div>
       <div class="subtab ${state.subtab === 'tabela' ? 'active' : ''}" data-sub="tabela">Tabela</div>
@@ -401,9 +408,85 @@ function renderActive() {
     }),
   );
   $('#finish').addEventListener('click', finishActive);
+  $('#autofill').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    try {
+      await api.setAutoFill(t.id, on);
+      t.auto_fill = on ? 1 : 0;
+      if (on) startLivePoll();
+      else stopLivePoll();
+      toast(on ? 'Auto-uzupełnianie włączone' : 'Auto-uzupełnianie wstrzymane');
+    } catch (err) {
+      e.target.checked = !on;
+      toast(err.message, true);
+    }
+  });
 
   if (state.subtab === 'mecze') renderMatches();
   else renderRanking($('#sub'), t.players, t.matches);
+
+  if (t.auto_fill) startLivePoll();
+  else stopLivePoll();
+}
+
+// --- żywy pop-in wyników z pokoju (polling aktywnego turnieju) ---
+let livePoll = null;
+function startLivePoll() {
+  if (livePoll) return;
+  livePoll = setInterval(pollLive, 5000);
+}
+function stopLivePoll() {
+  if (livePoll) { clearInterval(livePoll); livePoll = null; }
+}
+
+async function pollLive() {
+  if (!state.active || state.tab !== 'turniej') return;
+  const id = state.active.id;
+  let fresh;
+  try {
+    fresh = await api.tournament(id);
+  } catch (e) {
+    return; // sieć/serwer — spróbujemy przy następnym ticku
+  }
+  if (!state.active || state.active.id !== id) return; // stan zmieniony w międzyczasie
+  const local = state.active;
+  const changed = [];
+  for (const fm of fresh.matches) {
+    const lm = local.matches.find((x) => x.id === fm.id);
+    if (!lm) continue;
+    if (lm.scoreA !== fm.scoreA || lm.scoreB !== fm.scoreB) {
+      const wasEmpty = lm.scoreA === null && lm.scoreB === null;
+      lm.scoreA = fm.scoreA;
+      lm.scoreB = fm.scoreB;
+      changed.push({ m: lm, wasEmpty });
+    }
+  }
+  if (!changed.length) return;
+  if (state.subtab === 'mecze') applyLiveToInputs(changed);
+  else renderRanking($('#sub'), local.players, local.matches);
+  const filled = changed.filter((c) => c.wasEmpty && c.m.scoreA !== null);
+  if (filled.length) {
+    toast('Wynik z pokoju: ' + filled.map((c) => 'Mecz ' + c.m.match_no).join(', '));
+  }
+}
+
+// Wpisuje wyniki do inputów bez psucia pola, które właśnie edytujesz.
+function applyLiveToInputs(changed) {
+  const box = $('#sub');
+  if (!box) return;
+  for (const { m } of changed) {
+    const row = box.querySelector(`.match[data-mid="${m.id}"]`);
+    if (!row) continue;
+    const sa = $('.sa', row);
+    const sb = $('.sb', row);
+    if (document.activeElement === sa || document.activeElement === sb) continue; // nie nadpisuj ręcznego wpisywania
+    sa.value = m.scoreA ?? '';
+    sb.value = m.scoreB ?? '';
+    const savedEl = $('.match-saved', row);
+    if (savedEl) savedEl.style.display = m.scoreA !== null && m.scoreB !== null ? '' : 'none';
+    row.classList.add('live-flash');
+    setTimeout(() => row.classList.remove('live-flash'), 1500);
+  }
 }
 
 function renderMatches() {
@@ -521,6 +604,7 @@ async function finishActive() {
     : `Zakończyć turniej? Zwycięzca: ${winner ? winner.name : '—'}.`;
   if (!confirm(msg)) return;
   try {
+    stopLivePoll();
     await api.finishTournament(t.id, winner ? winner.id : null);
     state.active = null;
     await refreshData();
@@ -718,6 +802,11 @@ function fmtUnix(sec) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 const signed = (n) => (n > 0 ? '+' + n : String(n));
+// Czas gola jako minuta:sekunda (np. 128s -> 2:08).
+function mmss(sec) {
+  const s = Math.round(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 async function loadStats() {
   const raw = await api.stats();
@@ -725,9 +814,15 @@ async function loadStats() {
   state.statsMatches = stats.resolveMatches(raw.matches, stats.aliasMap(raw.aliases));
 }
 
+// Mecze liczone do globalnych statystyk (bez 1v1/2v1 i bez treningowych).
+// Historia meczów używa pełnej listy.
+function countedStats() {
+  return stats.counted(state.statsMatches).filter((m) => !m.is_training);
+}
+
 function statPlayerNames() {
   const s = new Set();
-  for (const m of state.statsMatches) {
+  for (const m of countedStats()) {
     m.red.forEach((n) => s.add(n));
     m.blue.forEach((n) => s.add(n));
   }
@@ -793,10 +888,31 @@ function goToPlayer(name) {
 }
 
 // --- Ranking (leaderboard globalny) ---
+// Kolumny sortowalne klikiem nagłówka. Domyślnie ELO ↓.
+const RANK_COLS = [
+  ['elo', 'Elo', 'desc'],
+  ['matches', 'M', 'desc'],
+  ['wins', 'W', 'desc'],
+  ['losses', 'P', 'desc'],
+  ['gf', 'BZ', 'desc'],
+  ['ga', 'BS', 'desc'],
+  ['goal_diff', '+/−', 'desc'],
+];
+
 function renderStatRanking(box) {
-  const cats = stats.categories(state.statsMatches);
-  const rows = stats.leaderboard(state.statsMatches, { day: state.statsDay, category: state.statsCat });
+  const cats = stats.categories(countedStats());
+  const rows = stats.leaderboard(countedStats(), { day: state.statsDay, category: state.statsCat });
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : '');
+
+  const { col, dir } = state.statsSort;
+  const mul = dir === 'asc' ? 1 : -1;
+  rows.sort((x, y) => {
+    const a = x[col], b = y[col];
+    if (a !== b) return a < b ? -1 * mul : 1 * mul;
+    return String(x.name).localeCompare(String(y.name), 'pl');
+  });
+  const arrow = (c) => (col === c ? (dir === 'asc' ? ' ▲' : ' ▼') : '');
+
   box.innerHTML = `
     <div class="chips" style="margin-bottom:12px">
       <button class="chip ${state.statsCat === null ? 'selected' : ''}" data-cat="">Wszystkie</button>
@@ -807,22 +923,20 @@ function renderStatRanking(box) {
       <table class="rank">
         <thead>
           <tr>
-            <th>#</th><th class="name">Gracz</th><th>Elo</th><th>M</th><th>W</th><th>P</th>
-            <th>Win%</th><th>G</th><th>A</th><th>Pkt</th><th>BZ</th><th>BS</th><th>+/−</th>
+            <th>#</th><th class="name">Gracz</th>
+            ${RANK_COLS.map(([c, l]) => `<th class="sortable ${col === c ? 'sorted' : ''}" data-col="${c}">${l}${arrow(c)}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
           ${rows
             .map(
-              (r) => `
-            <tr class="${r.place === 1 ? 'leader' : ''}">
-              <td>${r.place}</td>
-              <td class="name"><span class="medal">${medal(r.place)}</span><a class="pname" data-name="${esc(r.name)}">${esc(r.name)}</a></td>
+              (r, i) => `
+            <tr class="${i === 0 ? 'leader' : ''}">
+              <td>${i + 1}</td>
+              <td class="name"><span class="medal">${medal(i + 1)}</span><a class="pname" data-name="${esc(r.name)}">${esc(r.name)}</a></td>
               <td class="pts">${r.elo}</td>
               <td>${r.matches}</td><td>${r.wins}</td><td>${r.losses}</td>
-              <td>${Math.round(r.win_rate * 100)}%</td>
-              <td>${r.goals}</td><td>${r.assists}</td>
-              <td class="pts">${r.points}</td><td>${r.gf}</td><td>${r.ga}</td>
+              <td>${r.gf}</td><td>${r.ga}</td>
               <td>${signed(r.goal_diff)}</td>
             </tr>`,
             )
@@ -830,11 +944,23 @@ function renderStatRanking(box) {
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:.82rem;margin-top:8px">Elo, M=mecze, W/P=wygrane/przegrane, G=gole, A=asysty, Pkt=punkty (3/wygraną), BZ/BS=bramki zdobyte/stracone, +/−=bilans. Gole/asysty bywają 0 — kolektor nie zna strzelca.</p>
+    <p class="muted" style="font-size:.82rem;margin-top:8px">Elo (ranking), M=mecze, W/P=wygrane/przegrane, BZ/BS=bramki zdobyte/stracone (jako drużyna), +/−=bilans. Kliknij nagłówek by sortować. Mecze 1v1/2v1 nie są liczone.</p>
   `;
   $$('.chip[data-cat]', box).forEach((c) =>
     c.addEventListener('click', () => {
       state.statsCat = c.dataset.cat === '' ? null : c.dataset.cat;
+      renderStatRanking(box);
+    }),
+  );
+  $$('th.sortable', box).forEach((th) =>
+    th.addEventListener('click', () => {
+      const c = th.dataset.col;
+      if (state.statsSort.col === c) {
+        state.statsSort.dir = state.statsSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.statsSort.col = c;
+        state.statsSort.dir = RANK_COLS.find((x) => x[0] === c)[2];
+      }
       renderStatRanking(box);
     }),
   );
@@ -852,19 +978,22 @@ function renderStatMatches(box) {
     .map((m) => {
       const open = state.statsExpanded.has(m.id);
       const src = m.source === 'live' ? '<span class="src-badge live">na żywo</span>' : '<span class="src-badge">turniej</span>';
+      const uncounted = !(m.red.length >= 2 && m.blue.length >= 2)
+        ? '<span class="src-badge">nieliczony</span>' : '';
+      const training = m.is_training ? '<span class="src-badge">treningowy</span>' : '';
       const goals = m.goals.length
         ? `<div class="goal-list">${m.goals
-            .map((g) => `<div class="goal ${g.team}">${Math.round(g.time)}s • ${g.own_goal ? 'samobój' : (g.scorer ? esc(g.scorer) : 'gol')}${g.assist ? ' (as. ' + esc(g.assist) + ')' : ''}</div>`)
+            .map((g) => `<div class="goal ${g.team}">${mmss(g.time)} • ${g.own_goal ? 'samobój' : (g.scorer ? esc(g.scorer) : 'gol')}${g.assist ? ' (as. ' + esc(g.assist) + ')' : ''}</div>`)
             .join('')}</div>`
         : `<div class="muted" style="font-size:.85rem;margin-top:8px">Brak szczegółów goli.</div>`;
-      const del = m.source === 'live'
-        ? `<button class="link-btn del-match" data-id="${m.id}" style="color:var(--danger)">usuń</button>`
+      const toggle = m.source === 'live'
+        ? `<button class="link-btn train-match" data-id="${m.id}" data-train="${m.is_training ? 0 : 1}" style="color:var(--green-dark)">${m.is_training ? 'oznacz oficjalny' : 'oznacz treningowy'}</button>`
         : '';
       return `
       <div class="match" data-mid="${m.id}">
         <div class="match-head">
-          <span class="match-no">${fmtUnix(m.started_at)} ${src}</span>
-          <span>${del}</span>
+          <span class="match-no">${fmtUnix(m.started_at)} ${src}${uncounted}${training}</span>
+          <span>${toggle}</span>
         </div>
         <div class="teams">
           <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names')}</div>
@@ -886,11 +1015,10 @@ function renderStatMatches(box) {
     }),
   );
   $$('.pname', box).forEach((a) => a.addEventListener('click', () => goToPlayer(a.textContent)));
-  $$('.del-match', box).forEach((b) =>
+  $$('.train-match', box).forEach((b) =>
     b.addEventListener('click', async () => {
-      if (!confirm('Usunąć ten mecz ze statystyk?')) return;
       try {
-        await api.deleteStatMatch(Number(b.dataset.id.slice(1))); // 'L<n>' -> n
+        await api.setStatMatchTraining(Number(b.dataset.id.slice(1)), b.dataset.train === '1'); // 'L<n>' -> n
         await loadStats();
         renderStatMatches(box);
       } catch (err) {
@@ -904,7 +1032,7 @@ function renderStatMatches(box) {
 function renderStatPlayer(box) {
   const names = statPlayerNames();
   if (!state.statsPlayer && names.length) state.statsPlayer = names[0];
-  const detail = state.statsPlayer ? stats.playerDetail(state.statsMatches, state.statsPlayer) : null;
+  const detail = state.statsPlayer ? stats.playerDetail(countedStats(), state.statsPlayer) : null;
 
   const tiles = detail
     ? [
@@ -919,7 +1047,7 @@ function renderStatPlayer(box) {
       ]
     : [];
 
-  const mates = state.statsPlayer ? stats.teammates(state.statsMatches, state.statsPlayer) : [];
+  const mates = state.statsPlayer ? stats.teammates(countedStats(), state.statsPlayer) : [];
 
   box.innerHTML = `
     <div class="card">
@@ -981,7 +1109,7 @@ function renderStatH2H(box) {
   if (!state.h2hB && names.length > 1) state.h2hB = names[1];
   const sel = (id, val) =>
     `<select id="${id}" style="flex:1">${names.map((n) => `<option value="${esc(n)}" ${n === val ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
-  const r = state.h2hA && state.h2hB ? stats.headToHead(state.statsMatches, state.h2hA, state.h2hB) : null;
+  const r = state.h2hA && state.h2hB ? stats.headToHead(countedStats(), state.h2hA, state.h2hB) : null;
   box.innerHTML = `
     <div class="card">
       <div class="row">${sel('h2h-a', state.h2hA)}<span class="vs">vs</span>${sel('h2h-b', state.h2hB)}</div>
@@ -1009,7 +1137,7 @@ function renderStatH2H(box) {
 
 // --- Dni ---
 function renderStatDays(box) {
-  const rows = stats.days(state.statsMatches, state.statsCat);
+  const rows = stats.days(countedStats(), state.statsCat);
   box.innerHTML = rows.length === 0
     ? `<div class="empty">Brak dni.</div>`
     : rows
@@ -1032,7 +1160,7 @@ function renderStatDays(box) {
 
 // --- Kategorie ---
 function renderStatCategories(box) {
-  const rows = stats.categories(state.statsMatches);
+  const rows = stats.categories(countedStats());
   box.innerHTML = `<div class="table-wrap"><table class="rank">
     <thead><tr><th class="name">Kategoria</th><th>Mecze</th></tr></thead>
     <tbody>${rows.map((c) => `<tr><td class="name">${esc(c.category)}</td><td>${c.matches}</td></tr>`).join('')}</tbody>

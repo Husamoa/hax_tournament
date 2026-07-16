@@ -140,10 +140,12 @@ workflow**). Postęp i logi widać w zakładce **Actions**.
 
 - **Kod (JS/PHP/CSS):** push do `main` → auto-deploy (Część B). Ręcznie: podmień pliki w `www/`
   przez FTP, **nie nadpisuj `api/config.php` ani `pitole.sqlite`**.
-- **Zmiany schematu bazy** (`schema.sqlite.sql`): brak systemu migracji (świadoma decyzja —
-  projekt hobbystyczny). Nowe tabele/kolumny nanieś ręcznie na bazie produkcyjnej — np. pobierz
-  `pitole.sqlite` przez FTP, zastosuj DDL lokalnie (`sqlite3 pitole.sqlite < zmiana.sql`) i wgraj
-  z powrotem, albo wykonaj DDL innym narzędziem SQLite. Auto-deploy celowo **nie** rusza bazy.
+- **Proste zmiany schematu (dodanie kolumny):** robi je **auto-migracja** w `api/db.php`
+  (`Repo::migrate`, przy pierwszym połączeniu, MySQL i SQLite) — nie trzeba ruszać bazy ręcznie.
+  Auto-deploy nadal nie dotyka pliku bazy; kolumnę dokłada sam kod przy starcie.
+- **Większe zmiany schematu** (nowe tabele, zmiana typów): brak systemu migracji — nanieś
+  ręcznie na bazie produkcyjnej (pobierz `pitole.sqlite` przez FTP, `sqlite3 pitole.sqlite <
+  zmiana.sql`, wgraj z powrotem; albo phpMyAdmin przy MySQL).
 
 ## Bezpieczeństwo
 

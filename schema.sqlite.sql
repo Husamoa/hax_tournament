@@ -16,6 +16,7 @@ CREATE TABLE tournaments (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT,
   status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft','active','finished')),
+  auto_fill        INTEGER NOT NULL DEFAULT 1,
   created_at       TEXT NOT NULL,
   finished_at      TEXT,
   winner_player_id INTEGER REFERENCES players(id)
@@ -56,6 +57,7 @@ CREATE TABLE stat_matches (
   red_score           INTEGER NOT NULL,
   blue_score          INTEGER NOT NULL,
   winner              TEXT    NOT NULL,
+  is_training         INTEGER NOT NULL DEFAULT 0,  -- 1 = mecz treningowy (nie liczony do statystyk)
   tournament_match_id INTEGER REFERENCES matches(id) ON DELETE SET NULL,
   created_at          TEXT    NOT NULL
 );

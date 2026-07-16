@@ -100,9 +100,21 @@ rostera turniejowego; most między nimi to nick == `name_snapshot` + tabela `ali
 ### Wyliczane w kliencie ([`public/stats.js`](../public/stats.js))
 
 Z `Repo::statData()` (mecze na żywo + rzut meczów turniejowych z wynikiem, dedup po
-`tournament_match_id`) klient liczy: leaderboard (punktacja Pitole 3/0 + bilans + BZ/BS + gole/
-asysty), **Elo** (baza 1000, K=32, chronologicznie), head-to-head, partnerów, dni, kategorie,
-podsumowanie. Aliasy resolvowane przez `resolveMatches()` przed liczeniem.
+`tournament_match_id`) klient liczy: leaderboard, **Elo**, head-to-head, partnerów, dni,
+kategorie, podsumowanie. Aliasy resolvowane przez `resolveMatches()` przed liczeniem.
+
+**Globalny ranking = po Elo** (nie po punktach — punktacja 3/wygraną żyje tylko w turniejach,
+`ranking.js`). Kolumny tabeli: Elo, M, W, P, BZ, BS, +/− (gole/asysty indywidualne są w
+profilu gracza). Kolumny sortowalne klikiem nagłówka.
+
+**Elo** — baza 1000, K=32, chronologicznie. Ocena drużyny = średnia ocen graczy + **handicap
+liczebności**: `± ELO_ADV·(rozmiar_red − rozmiar_blue)`, `ELO_ADV=150`. Skutek: przy 3v2
+faworytem jest liczniejsza drużyna, więc jej wygrana rusza Elo słabo, a wygrana słabszej
+liczebnie — mocno. Dla 2v2 handicap = 0 (bez zmian).
+
+**Mecze liczone (`counted()`):** tylko gdy obie drużyny mają ≥2 graczy — bez 1v1, 2v1, 3v1.
+Wykluczone mecze są widoczne w historii (plakietka „nieliczony"), ale poza wszystkimi
+obliczeniami globalnymi.
 
 ### Auto-link do turnieju (`ingest`)
 

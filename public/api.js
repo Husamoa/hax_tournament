@@ -44,6 +44,7 @@ export const api = {
   tournaments: () => req('GET', 'tournaments'),
   tournament: (id) => req('GET', 'tournaments', { id }),
   createTournament: (payload) => req('POST', 'tournaments', {}, payload),
+  setAutoFill: (id, on) => req('PATCH', 'tournaments', { id }, { auto_fill: on ? 1 : 0 }),
   deleteTournament: (id) => req('DELETE', 'tournaments', { id }),
   finishTournament: (id, winnerId) => req('POST', 'finish', { id }, { winner_player_id: winnerId }),
   reopenTournament: (id) => req('POST', 'reopen', { id }),
@@ -54,7 +55,7 @@ export const api = {
 
   // statystyki (surowe mecze + aliasy — liczone po stronie klienta w stats.js)
   stats: () => req('GET', 'stats'),
-  deleteStatMatch: (id) => req('DELETE', 'stat_matches', { id }),
+  setStatMatchTraining: (id, training) => req('PATCH', 'stat_matches', { id }, { is_training: training ? 1 : 0 }),
 
   // aliasy (scalanie nicków)
   aliases: () => req('GET', 'aliases'),

@@ -17,6 +17,7 @@ CREATE TABLE tournaments (
   id               INT AUTO_INCREMENT PRIMARY KEY,
   name             VARCHAR(128) NULL,                              -- domyślnie generowana z daty
   status           ENUM('draft','active','finished') NOT NULL DEFAULT 'active',
+  auto_fill        TINYINT NOT NULL DEFAULT 1,                     -- 1 = wyniki z pokoju HaxBall wpadają automatycznie (wajcha)
   created_at       DATETIME NOT NULL,
   finished_at      DATETIME NULL,
   winner_player_id INT NULL,
@@ -65,6 +66,7 @@ CREATE TABLE stat_matches (
   red_score           INT         NOT NULL,
   blue_score          INT         NOT NULL,
   winner              VARCHAR(8)  NOT NULL,           -- 'red' | 'blue'
+  is_training         TINYINT     NOT NULL DEFAULT 0, -- 1 = mecz treningowy (nie liczony do statystyk)
   tournament_match_id INT NULL,                       -- auto-link do meczu turnieju (dedup)
   created_at          DATETIME    NOT NULL,
   CONSTRAINT fk_sm_tm FOREIGN KEY (tournament_match_id) REFERENCES matches(id) ON DELETE SET NULL,

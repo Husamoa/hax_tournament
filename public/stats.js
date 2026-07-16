@@ -12,6 +12,9 @@
 
 const ELO_BASE = 1000;
 const ELO_K = 32;
+// Handicap liczebności: każdy gracz przewagi = +ADV pkt oczekiwanej oceny drużyny.
+// Wygrana słabszej liczebnie drużyny mocno w górę, silniejszej — słabo (3v2 itp.).
+const ELO_ADV = 150;
 
 // ------------------------------------------------------------------ aliasy
 export function aliasMap(aliases) {
@@ -48,6 +51,11 @@ export function resolveMatches(matches, amap) {
 }
 
 // ------------------------------------------------------------------ pomocnicze
+/** Mecze liczone do globalnych statystyk: obie drużyny min. 2 graczy (bez 1v1, 2v1, 3v1). */
+export function counted(matches) {
+  return (matches || []).filter((m) => m.red.length >= 2 && m.blue.length >= 2);
+}
+
 /** Kategoria z rozmiarów drużyn: większa strona pierwsza (2v3 == 3v2). */
 export function category(m) {
   const hi = Math.max(m.red.length, m.blue.length);
@@ -75,8 +83,9 @@ export function eloRatings(matches) {
   const sorted = [...matches].sort((a, b) => a.started_at - b.started_at);
   for (const m of sorted) {
     if (!m.red.length || !m.blue.length) continue;
-    const ra = m.red.reduce((s, p) => s + get(p), 0) / m.red.length;
-    const rb = m.blue.reduce((s, p) => s + get(p), 0) / m.blue.length;
+    const adv = ELO_ADV * (m.red.length - m.blue.length); // + gdy red liczniejszy
+    const ra = m.red.reduce((s, p) => s + get(p), 0) / m.red.length + adv;
+    const rb = m.blue.reduce((s, p) => s + get(p), 0) / m.blue.length - adv;
     const ea = 1 / (1 + 10 ** ((rb - ra) / 400));
     const sa = m.winner === 'red' ? 1 : 0;
     for (const p of m.red) ratings.set(p, get(p) + ELO_K * (sa - ea));
@@ -98,10 +107,7 @@ export function leaderboard(matches, { day = null, category: cat = null } = {}) 
   const t = new Map();
   const tally = (name) => {
     if (!t.has(name)) {
-      t.set(name, {
-        name, matches: 0, wins: 0, losses: 0, points: 0,
-        gf: 0, ga: 0, goals: 0, assists: 0, own_goals: 0,
-      });
+      t.set(name, { name, matches: 0, wins: 0, losses: 0, gf: 0, ga: 0 });
     }
     return t.get(name);
   };
@@ -115,15 +121,8 @@ export function leaderboard(matches, { day = null, category: cat = null } = {}) 
         e.matches++;
         e.gf += gf;
         e.ga += ga;
-        if (team === m.winner) { e.wins++; e.points += 3; }
+        if (team === m.winner) e.wins++;
         else e.losses++;
-      }
-    }
-    for (const g of m.goals) {
-      if (g.own_goal) { if (g.scorer) tally(g.scorer).own_goals++; }
-      else {
-        if (g.scorer) tally(g.scorer).goals++;
-        if (g.assist) tally(g.assist).assists++;
       }
     }
   }
@@ -135,9 +134,10 @@ export function leaderboard(matches, { day = null, category: cat = null } = {}) 
     win_rate: winRate(e.wins, e.matches),
     elo: Math.round(elo.has(e.name) ? elo.get(e.name) : ELO_BASE),
   }));
+  // Ranking globalny po ELO (punkty tabelaryczne są tylko w turniejach).
   rows.sort(
     (x, y) =>
-      y.points - x.points ||
+      y.elo - x.elo ||
       y.goal_diff - x.goal_diff ||
       y.gf - x.gf ||
       String(x.name).localeCompare(String(y.name), 'pl'),

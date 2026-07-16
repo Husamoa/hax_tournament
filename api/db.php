@@ -28,8 +28,32 @@ final class DB
             if (str_starts_with($cfg['db_dsn'], 'sqlite:')) {
                 self::$pdo->exec('PRAGMA foreign_keys = ON');
             }
+            self::migrate(self::$pdo);
         }
         return self::$pdo;
+    }
+
+    /**
+     * Lekkie auto-migracje (idempotentne) — żeby nie trzeba było ręcznie ruszać bazy produkcyjnej.
+     * Uruchamiane raz na proces (PDO cache'owane). Wymaga uprawnienia ALTER (użytkownik OVH ma).
+     */
+    private static function migrate(PDO $pdo): void
+    {
+        // Składnia ALTER wspólna dla MySQL i SQLite. Każda kolumna sprawdzana osobno (idempotentnie).
+
+        // tournaments.auto_fill — wajcha auto-wpisu wyników z pokoju HaxBall.
+        try {
+            $pdo->query('SELECT auto_fill FROM tournaments LIMIT 1');
+        } catch (Throwable $e) {
+            $pdo->exec('ALTER TABLE tournaments ADD COLUMN auto_fill INTEGER NOT NULL DEFAULT 1');
+        }
+
+        // stat_matches.is_training — flaga meczu treningowego (zastępuje usuwanie).
+        try {
+            $pdo->query('SELECT is_training FROM stat_matches LIMIT 1');
+        } catch (Throwable $e) {
+            $pdo->exec('ALTER TABLE stat_matches ADD COLUMN is_training INTEGER NOT NULL DEFAULT 0');
+        }
     }
 }
 
@@ -194,9 +218,18 @@ final class Repo
             'created_at'       => $t['created_at'],
             'finished_at'      => $t['finished_at'],
             'winner_player_id' => $t['winner_player_id'] !== null ? (int) $t['winner_player_id'] : null,
+            'auto_fill'        => (int) $t['auto_fill'],
             'players'          => $players,
             'matches'          => $matches,
         ];
+    }
+
+    /** Wajcha: czy wyniki z pokoju HaxBall wpadają do tego turnieju automatycznie. */
+    public static function setAutoFill(int $id, bool $on): void
+    {
+        DB::pdo()
+            ->prepare('UPDATE tournaments SET auto_fill = ? WHERE id = ?')
+            ->execute([$on ? 1 : 0, $id]);
     }
 
     /** Zapisuje wynik meczu. Przekazanie null,null czyści wynik. */
@@ -309,10 +342,12 @@ final class Repo
         DB::pdo()->prepare('DELETE FROM aliases WHERE alias = ?')->execute([$alias]);
     }
 
-    public static function deleteStatMatch(int $id): void
+    /** Oznacza mecz na żywo jako treningowy (1) lub oficjalny (0). Odwracalne, nie usuwa danych. */
+    public static function setStatMatchTraining(int $id, bool $training): void
     {
-        // CASCADE usuwa stat_match_players i stat_goals
-        DB::pdo()->prepare('DELETE FROM stat_matches WHERE id = ?')->execute([$id]);
+        DB::pdo()
+            ->prepare('UPDATE stat_matches SET is_training = ? WHERE id = ?')
+            ->execute([$training ? 1 : 0, $id]);
     }
 
     /**
@@ -400,7 +435,7 @@ final class Repo
         $rows = $pdo->query(
             "SELECT m.id, m.tournament_id, m.a1_id, m.a2_id, m.a3_id, m.b1_id, m.b2_id, m.b3_id
              FROM matches m JOIN tournaments t ON t.id = m.tournament_id
-             WHERE t.status = 'active'
+             WHERE t.status = 'active' AND t.auto_fill = 1
              ORDER BY m.tournament_id, m.match_no"
         )->fetchAll();
         if (!$rows) {
@@ -503,8 +538,9 @@ final class Repo
                 $linked[(int) $r['tournament_match_id']] = true;
             }
             $matches[] = [
-                'id'         => 'L' . $id,
-                'source'     => 'live',
+                'id'          => 'L' . $id,
+                'source'      => 'live',
+                'is_training' => (int) $r['is_training'] === 1,
                 'started_at' => (float) $r['started_at'],
                 'red_score'  => (int) $r['red_score'],
                 'blue_score' => (int) $r['blue_score'],

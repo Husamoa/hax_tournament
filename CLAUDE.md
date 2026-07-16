@@ -71,9 +71,16 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
   tym samym składzie (nicki, aliasy, niezależnie od strony/kolejności) i wpisuje mu wynik
   (mapując czerwony/niebieski na drużynę A/B). Prawdziwy wynik nadpisuje ręczny; nie nadpisuje
   już zlinkowanego. Zapamiętany w `stat_matches.tournament_match_id` → zapobiega dublowaniu.
-- **Punktacja globalna** trzyma regułę Pitole (3 pkt/wygraną, brak remisów). Dodatkowo Elo
-  (baza 1000, K=32, odtwarzane chronologicznie). Gole/asysty bywają 0 — kolektor z DOM nie
-  zna strzelca (wysyła `null`).
+- **Ranking globalny liczy się po Elo**, nie po punktach — punktacja 3/wygraną żyje tylko w
+  turniejach (`ranking.js`). Elo: baza 1000, K=32, odtwarzane chronologicznie; ocena drużyny =
+  średnia + **handicap liczebności** `± 150·(rozmiar_red − rozmiar_blue)` (przy 3v2 wygrana
+  słabszej liczebnie waży dużo, silniejszej — mało; 2v2 bez zmian).
+- **Mecze liczone globalnie:** tylko gdy obie drużyny ≥2 graczy (`stats.counted()`) — bez 1v1,
+  2v1, 3v1 — oraz **nie-treningowe** (`is_training=0`). Wykluczone są widoczne w historii
+  (plakietki „nieliczony"/„treningowy"), poza obliczeniami.
+- **Treningowy zamiast usuwania:** meczu na żywo się nie kasuje — oznacza `is_training`
+  (PATCH `?r=stat_matches`). Odwracalne, dane zostają. Domyślnie mecze są oficjalne.
+- Gole/asysty bywają 0 — kolektor z DOM nie zna strzelca (wysyła `null`).
 - **Endpoint `?r=ingest` jest BEZ logowania** (tamper działa cross-origin na haxball.com).
 
 ## Uruchomienie lokalne
