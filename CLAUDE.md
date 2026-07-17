@@ -42,6 +42,7 @@ uruchomienia testów logiki lokalnie.
 | `docker-compose.yml` + `Dockerfile` | Dev w Dockerze: 1 kontener (PHP 8.2 + Apache + SQLite) — układ 1:1 jak OVH |
 | `docker/config.docker.php` | Config dla kontenera (montowany jako `api/config.php`; SQLite, tylko dane dev) |
 | `docker/init-db.php` | Init bazy SQLite ze schematu przy pierwszym starcie kontenera |
+| `tools/seed-dev.php` | Seed danych testowych (DEV) — kasuje i wypełnia bazę; działa lokalnie i w Dockerze |
 | `.github/workflows/deploy.yml` | **Auto-deploy**: push do `main` → testy → FTPS na OVH |
 | `.github/deploy/` | Pliki `.htaccess` nakładane na produkcję przez CI (wymuszenie HTTPS, ochrona bazy) |
 
@@ -113,6 +114,12 @@ php -r "echo password_hash('pitole', PASSWORD_DEFAULT), PHP_EOL;"   # wklej do c
 php -S 127.0.0.1:8099 dev-server.php
 #    -> http://127.0.0.1:8099/   (UWAGA: użyj 127.0.0.1, nie "localhost",
 #       bo "localhost" bywa zajęty przez inny lokalny serwer na ::1)
+```
+
+**Dane testowe (seed)** — `tools/seed-dev.php` (kasuje bazę, wypełnia przykładami; DEV):
+```bash
+docker compose exec -u www-data app php /var/www/tools/seed-dev.php   # Docker
+/c/xampp/php/php.exe tools/seed-dev.php                                # bez Dockera (XAMPP)
 ```
 
 **Testy logiki:**

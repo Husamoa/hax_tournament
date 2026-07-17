@@ -27,6 +27,8 @@ services:
       # schemat + skrypt inicjujący bazę (odpalany z command przy starcie)
       - ./schema.sqlite.sql:/schema.sqlite.sql:ro
       - ./docker/init-db.php:/var/www/init-db.php:ro
+      # narzędzia dev (np. seed): docker compose exec -u www-data app php /var/www/tools/seed-dev.php
+      - ./tools:/var/www/tools:ro
       # trwały katalog na plik bazy SQLite (reset: docker compose down -v)
       - dbdata:/var/www/data
     # start: utwórz bazę (gdy brak), daj Apache'owi prawo zapisu do katalogu bazy, odpal serwer

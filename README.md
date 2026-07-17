@@ -62,6 +62,19 @@ cp config.sample.php api/config.php      # ustaw ścieżkę sqlite + password_ha
 php -S 127.0.0.1:8099 dev-server.php
 ```
 
+### Dane testowe (seed)
+
+Wypełnia bazę przykładowymi danymi (gracze, turnieje 2v2/3v3, aktywny turniej w toku,
+mecze statystyk: na żywo/ręczne/treningowy, alias). **Kasuje istniejącą zawartość — tylko dev.**
+
+```bash
+# Docker (baza w kontenerze):
+docker compose exec -u www-data app php /var/www/tools/seed-dev.php
+
+# Bez Dockera (baza api/pitole.sqlite):
+php tools/seed-dev.php
+```
+
 ### Testy logiki (wymaga Node)
 
 ```bash
