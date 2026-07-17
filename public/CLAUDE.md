@@ -29,8 +29,16 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - `subtab` (`mecze`|`tabela`), `editing` (edycja składów), `historyDetail`
 - **statystyki:** `statsRaw` (surowe z API), `statsMatches` (po aliasach), `statsSub`
   (`ranking`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsCat`/`statsDay` (filtry),
-  `statsPlayer`, `statsExpanded` (rozwinięte mecze), `h2hA`/`h2hB`. Dane ładowane leniwie przy
+  `statsPlayer`, `statsExpanded` (rozwinięte mecze), `statsAddOpen` (otwarty formularz
+  ręcznego dodawania meczu w subtab Mecze), `h2hA`/`h2hB`. Dane ładowane leniwie przy
   wejściu w zakładkę (`loadStats`), przycisk „↻ Odśwież”. Nazwy graczy przez `esc()`.
+- **Ręczne dodawanie meczu (subtab Mecze):** `renderStatMatches` dzieli widok na dwa
+  kontenery — `#stats-add` (`renderStatAddSection`: przycisk + rozwijany formularz) i
+  `#stats-list` (`renderStatMatchesList`: lista meczów). Akcje na liście (rozwijanie goli,
+  usuwanie) przerysowują tylko listę, więc nie kasują wpisywanego meczu. Walidacja kliencka
+  lustrzana do serwerowej (`validateScore` + składy różne/niepuste); po zapisie `api.addStatMatch`
+  → `loadStats` → toast (z informacją o auto-linku, jeśli `linked`). Mecze `source==='manual'`
+  mają badge „ręcznie” i są usuwalne (jak `live`); mecze z turnieju — nie.
 
 ## Przepływ ekranów
 

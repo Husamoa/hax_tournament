@@ -2,7 +2,7 @@
 // Wejście: płaska lista meczów name-based z API (`?r=stats`) + lista aliasów.
 //
 // Kształt meczu:
-//   { id, source:'live'|'tournament', started_at:<unix s>, red_score, blue_score,
+//   { id, source:'live'|'manual'|'tournament', started_at:<unix s>, red_score, blue_score,
 //     winner:'red'|'blue', red:[nick...], blue:[nick...],
 //     goals:[{time, team, scorer|null, assist|null, own_goal:bool}] }
 //

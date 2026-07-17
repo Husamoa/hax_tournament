@@ -252,6 +252,7 @@ table.rank td.pts { font-weight: 700; }
   margin-left: 6px;
 }
 .src-badge.live { color: var(--green); border-color: var(--green); }
+.src-badge.manual { color: #b06a00; border-color: #e0b070; }
 
 .stat-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 @media (min-width: 480px) { .stat-tiles { grid-template-columns: repeat(4, 1fr); } }
