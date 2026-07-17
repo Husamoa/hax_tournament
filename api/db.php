@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 /**
  * JEDYNA warstwa dostępu do bazy.
- * Cały SQL aplikacji żyje tutaj (klasa Repo). Podmiana bazy (MySQL <-> SQLite)
- * to zmiana DSN w api/config.php — reszta kodu się nie zmienia.
+ * Cały SQL aplikacji żyje tutaj (klasa Repo). Baza: SQLite — tak samo lokalnie
+ * i na produkcji (OVH). Ścieżkę pliku ustawia DSN w api/config.php.
  */
 
 final class DB
@@ -25,9 +25,8 @@ final class DB
                     PDO::ATTR_EMULATE_PREPARES   => false,
                 ]
             );
-            if (str_starts_with($cfg['db_dsn'], 'sqlite:')) {
-                self::$pdo->exec('PRAGMA foreign_keys = ON');
-            }
+            // SQLite: klucze obce trzeba włączyć per-połączenie.
+            self::$pdo->exec('PRAGMA foreign_keys = ON');
             self::migrate(self::$pdo);
         }
         return self::$pdo;
@@ -35,11 +34,11 @@ final class DB
 
     /**
      * Lekkie auto-migracje (idempotentne) — żeby nie trzeba było ręcznie ruszać bazy produkcyjnej.
-     * Uruchamiane raz na proces (PDO cache'owane). Wymaga uprawnienia ALTER (użytkownik OVH ma).
+     * Uruchamiane raz na proces (PDO cache'owane). Dokładają kolumny brakujące w starszej bazie.
      */
     private static function migrate(PDO $pdo): void
     {
-        // Składnia ALTER wspólna dla MySQL i SQLite. Każda kolumna sprawdzana osobno (idempotentnie).
+        // Każda kolumna sprawdzana osobno (idempotentnie): SELECT się wywala → ALTER dokłada.
 
         // tournaments.auto_fill — wajcha auto-wpisu wyników z pokoju HaxBall.
         try {

@@ -13,7 +13,7 @@ HaxBall w formacie 2v2 z losowanymi składami i **indywidualnym** rankingiem gra
 
 ## Stack
 
-PHP 8 + MySQL (cienkie API JSON) + frontend SPA (vanilla JS, moduły ES) — **bez
+PHP 8 + SQLite (cienkie API JSON) + frontend SPA (vanilla JS, moduły ES) — **bez
 build-stepu**. Docelowy hosting: OVH, domena `pitole.pl`.
 
 ## Struktura
@@ -22,8 +22,7 @@ build-stepu**. Docelowy hosting: OVH, domena `pitole.pl`.
 api/       backend PHP (JSON) — db.php = jedyna warstwa dostępu do bazy
 public/    frontend SPA (index.html + moduły JS + CSS)
 docs/      algorytm, model danych, runbook wdrożenia OVH
-schema.sql             schemat MySQL (produkcja)
-schema.sqlite.sql      schemat SQLite (dev lokalny)
+schema.sqlite.sql      schemat bazy (SQLite — lokalnie i na produkcji)
 config.sample.php      szablon konfiguracji → skopiuj do api/config.php
 tests/       testy Node dla generatora, rankingu i statystyk
 tampermonkey/  opcjonalny userscript do nasłuchu wyników z HaxBall
@@ -44,9 +43,10 @@ automatycznie. Instalacja i konfiguracja: [`tampermonkey/README.md`](tampermonke
 docker compose up
 ```
 
-Wstaje wszystko: aplikacja pod **http://localhost:8090** (hasło dev: `pitole`)
-+ baza MySQL 8 (jak na produkcji) z automatycznie zaimportowanym schematem.
-Kod jest montowany z hosta — edytujesz plik, odświeżasz przeglądarkę.
+Wstaje aplikacja pod **http://localhost:8090** (hasło dev: `pitole`) na
+**PHP 8.2 + Apache + SQLite — dokładnie jak na produkcji OVH** (bez osobnego serwera bazy;
+schemat SQLite importuje się sam przy pierwszym starcie). Kod montowany z hosta — edytujesz
+plik, odświeżasz przeglądarkę.
 
 - inny port: `APP_PORT=8123 docker compose up`
 - reset bazy: `docker compose down -v`
@@ -56,7 +56,7 @@ Kod jest montowany z hosta — edytujesz plik, odświeżasz przeglądarkę.
 ```bash
 # 1. Baza SQLite + config
 php -r '$p=new PDO("sqlite:api/pitole.sqlite");$p->exec(file_get_contents("schema.sqlite.sql"));'
-cp config.sample.php api/config.php      # ustaw DSN sqlite + password_hash
+cp config.sample.php api/config.php      # ustaw ścieżkę sqlite + password_hash
 
 # 2. Serwer dev (router odtwarza układ OVH: / = public/, /api = api/)
 php -S 127.0.0.1:8099 dev-server.php

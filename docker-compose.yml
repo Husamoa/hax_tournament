@@ -2,8 +2,10 @@
 #
 #   aplikacja:  http://localhost:8090   (port zmienisz zmienną APP_PORT)
 #   hasło dev:  pitole
-#   baza:       MySQL 8 (jak na produkcji OVH); schemat importuje się sam
-#               przy PIERWSZYM starcie wolumenu. Reset bazy: docker compose down -v
+#   baza:       SQLite — DOKŁADNIE jak na produkcji OVH (PHP 8.2 + Apache + SQLite,
+#               bez osobnego serwera bazy). Plik bazy żyje w wolumenie `dbdata`;
+#               schemat (schema.sqlite.sql) importuje się sam przy pierwszym starcie.
+#               Reset bazy: docker compose down -v
 #
 # Kod jest montowany z hosta — edytujesz pliki, odświeżasz przeglądarkę,
 # bez przebudowy obrazu.
@@ -20,28 +22,15 @@ services:
       - ./public:/var/www/html
       - ./api/index.php:/var/www/api/index.php:ro
       - ./api/db.php:/var/www/api/db.php:ro
-      # config developerski (MySQL z kontenera "db", hasło dev "pitole")
+      # config developerski (SQLite w /var/www/data, hasło dev "pitole")
       - ./docker/config.docker.php:/var/www/api/config.php:ro
-    depends_on:
-      db:
-        condition: service_healthy
-
-  db:
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: pitole
-      MYSQL_USER: pitole
-      MYSQL_PASSWORD: pitole
-      MYSQL_ROOT_PASSWORD: root
-    volumes:
-      # auto-import schematu przy pierwszej inicjalizacji wolumenu
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - dbdata:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-upitole", "-ppitole"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+      # schemat + skrypt inicjujący bazę (odpalany z command przy starcie)
+      - ./schema.sqlite.sql:/schema.sqlite.sql:ro
+      - ./docker/init-db.php:/var/www/init-db.php:ro
+      # trwały katalog na plik bazy SQLite (reset: docker compose down -v)
+      - dbdata:/var/www/data
+    # start: utwórz bazę (gdy brak), daj Apache'owi prawo zapisu do katalogu bazy, odpal serwer
+    command: ["sh", "-c", "php /var/www/init-db.php && chown -R www-data:www-data /var/www/data && exec apache2-foreground"]
 
 volumes:
   dbdata:

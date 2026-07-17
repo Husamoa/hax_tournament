@@ -10,8 +10,8 @@ składami i **indywidualnym** rankingiem graczy. Domena docelowa: `pitole.pl` (h
 ## Stack (świadomie prosty — pod OVH bez build-stepu)
 
 - **Backend:** PHP 8, PDO. Cienkie API JSON. Routing query-string (`api/index.php?r=...`).
-- **Baza:** **SQLite** — na produkcji (darmowy hosting OVH) i lokalnie (`schema.sqlite.sql`).
-  Warstwa PDO wspiera też MySQL (`schema.sql`) na wypadek przejścia na płatny plan z MySQL.
+- **Baza:** **SQLite** — jedyna baza, tak samo na produkcji (darmowy hosting OVH) i lokalnie
+  (schemat: `schema.sqlite.sql`). Bez serwera bazy — plik `.sqlite` obok API.
 - **Frontend:** SPA — vanilla JS (moduły ES), bez frameworka i bez builda.
 - **Dostęp:** jedno wspólne hasło ekipy → sesja PHP (cookie). Bez kont per gracz.
 
@@ -33,14 +33,15 @@ uruchomienia testów logiki lokalnie.
 | `public/stats.js` | **Statystyki globalne** (leaderboard, Elo, H2H, partnerzy, dni, kategorie, aliasy). Czysta logika, import w app.js i w testach |
 | `public/styles.css` | Style mobile-first |
 | `tampermonkey/pitole-collector.user.js` | **Opcjonalny** userscript — nasłuch pokoju HaxBall w przeglądarce, POST wyniku do `?r=ingest` |
-| `schema.sql` / `schema.sqlite.sql` | Schemat bazy (MySQL / SQLite) |
+| `schema.sqlite.sql` | Schemat bazy (SQLite — lokalnie i na produkcji) |
 | `docs/algorithm.md` | Algorytm losowania + tabela liczby meczów + niezmienniki |
 | `docs/data-model.md` | Model danych + wzór rankingu |
 | `docs/deployment-ovh.md` | Runbook wdrożenia na OVH (krok po kroku) |
 | `tests/*.test.js` | Testy Node dla generatora i rankingu |
 | `dev-server.php` | Router **tylko do dev** (`php -S`), odtwarza układ produkcyjny |
-| `docker-compose.yml` + `Dockerfile` | Dev w Dockerze: app (PHP 8.2 + Apache) + MySQL 8 |
-| `docker/config.docker.php` | Config dla kontenera (montowany jako `api/config.php`; tylko dane dev) |
+| `docker-compose.yml` + `Dockerfile` | Dev w Dockerze: 1 kontener (PHP 8.2 + Apache + SQLite) — układ 1:1 jak OVH |
+| `docker/config.docker.php` | Config dla kontenera (montowany jako `api/config.php`; SQLite, tylko dane dev) |
+| `docker/init-db.php` | Init bazy SQLite ze schematu przy pierwszym starcie kontenera |
 | `.github/workflows/deploy.yml` | **Auto-deploy**: push do `main` → testy → FTPS na OVH |
 | `.github/deploy/` | Pliki `.htaccess` nakładane na produkcję przez CI (wymuszenie HTTPS, ochrona bazy) |
 
@@ -89,23 +90,23 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
 ```bash
 docker compose up          # -> http://localhost:8090, hasło dev: "pitole"
 ```
-App = PHP 8.2 + Apache (układ jak na OVH), baza = MySQL 8 z auto-importem `schema.sql`
-przy pierwszym starcie wolumenu. Kod montowany z hosta (edycja bez rebuilda).
-Inny port: `APP_PORT=8123 docker compose up`. Reset bazy: `docker compose down -v`.
-Config kontenera to `docker/config.docker.php` (montowany jako `api/config.php` —
-lokalnego `api/config.php` nie nadpisuje i nie używa).
+**Jeden kontener** = PHP 8.2 + Apache + **SQLite** — układ 1:1 jak na OVH (bez osobnego serwera
+bazy). Plik bazy żyje w wolumenie `dbdata` (`/var/www/data/pitole.sqlite`); schemat
+`schema.sqlite.sql` importuje się sam przy pierwszym starcie (`docker/init-db.php`). Kod
+montowany z hosta (edycja bez rebuilda). Inny port: `APP_PORT=8123 docker compose up`.
+Reset bazy: `docker compose down -v`. Config kontenera to `docker/config.docker.php`
+(montowany jako `api/config.php` — lokalnego `api/config.php` nie nadpisuje i nie używa).
 
-**Po pullu ze zmianą w `schema.sql`** (objaw: `Base table or view not found`): schemat
-importuje się tylko przy PIERWSZYM starcie wolumenu, więc istniejąca baza nie dostaje
-nowych tabel. Napraw: `docker compose down -v` (kasuje dane dev) albo dograj brakujące
-DDL ręcznie: `tail -n +<linia> schema.sql | docker compose exec -T db mysql -upitole -ppitole pitole`.
-Nie ma systemu migracji — świadoma decyzja (projekt hobbystyczny).
+**Po pullu ze zmianą schematu:** nowe **kolumny** dokłada się same (`Repo::migrate` przy
+pierwszym połączeniu). Nowe **tabele** wymagają odświeżenia bazy dev: `docker compose down -v`
+(kasuje dane dev, baza powstaje od nowa ze `schema.sqlite.sql`). Nie ma pełnego systemu
+migracji — świadoma decyzja (projekt hobbystyczny).
 
 **Bez Dockera** — PHP 8 (np. XAMPP: `/c/xampp/php/php.exe`) + SQLite:
 ```bash
 # 1. Baza SQLite + config
 php -r '$p=new PDO("sqlite:api/pitole.sqlite");$p->exec(file_get_contents("schema.sqlite.sql"));'
-cp config.sample.php api/config.php          # ustaw DSN sqlite + hash hasła (patrz niżej)
+cp config.sample.php api/config.php          # ustaw ścieżkę sqlite + hash hasła (patrz niżej)
 php -r "echo password_hash('pitole', PASSWORD_DEFAULT), PHP_EOL;"   # wklej do config.php
 
 # 2. Serwer dev (odtwarza układ OVH: / = public/, /api = api/)

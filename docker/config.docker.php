@@ -3,16 +3,17 @@
  * Konfiguracja dla developmentu w Dockerze (docker compose up).
  * Montowana do kontenera jako api/config.php (patrz docker-compose.yml).
  *
- * Zawiera WYŁĄCZNIE dane developerskie (host "db" istnieje tylko w sieci
- * compose, hasło logowania to "pitole") — dlatego ten plik JEST w repo.
+ * Zawiera WYŁĄCZNIE dane developerskie (baza SQLite w wolumenie kontenera,
+ * hasło logowania to "pitole") — dlatego ten plik JEST w repo.
  * Produkcyjny config tworzysz osobno z config.sample.php.
+ *
+ * Baza jak na produkcji: SQLite. Plik leży w wolumenie /var/www/data
+ * (init: docker/init-db.php przy starcie kontenera).
  */
 return [
-    'db_dsn'  => 'mysql:host=' . (getenv('DB_HOST') ?: 'db')
-               . ';dbname='   . (getenv('DB_NAME') ?: 'pitole')
-               . ';charset=utf8mb4',
-    'db_user' => getenv('DB_USER') ?: 'pitole',
-    'db_pass' => getenv('DB_PASS') ?: 'pitole',
+    'db_dsn'  => 'sqlite:' . (getenv('PITOLE_DB') ?: '/var/www/data/pitole.sqlite'),
+    'db_user' => null,
+    'db_pass' => null,
 
     // hash dev-hasła "pitole"
     'password_hash' => getenv('APP_PASSWORD_HASH')

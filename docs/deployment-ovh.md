@@ -3,9 +3,9 @@
 Cel: uruchomić aplikację pod `https://pitole.pl`. Produkcja stoi na **darmowym hostingu
 OVH 100M** (PHP 8.2) z bazą **SQLite** — bez build-stepu, pliki wgrywa się przez FTP.
 
-> **Dlaczego SQLite, nie MySQL?** Darmowy hosting OVH do domeny nie ma bazy MySQL, a aplikacja
-> waży < 1 MB i obsługuje ruch małej ekipy — SQLite w zupełności wystarcza. Kod wspiera też
-> MySQL (patrz sekcja **Wariant MySQL** na końcu), gdyby kiedyś przejść na płatny plan.
+> **Dlaczego SQLite?** Darmowy hosting OVH do domeny nie ma serwera baz danych, a aplikacja
+> waży < 1 MB i obsługuje ruch małej ekipy — SQLite (plik obok kodu) w zupełności wystarcza.
+> To jedyna baza projektu: **lokalnie (Docker/XAMPP) i na produkcji jest identycznie**.
 
 Układ docelowy w web roocie (`www/`):
 ```
@@ -141,11 +141,11 @@ workflow**). Postęp i logi widać w zakładce **Actions**.
 - **Kod (JS/PHP/CSS):** push do `main` → auto-deploy (Część B). Ręcznie: podmień pliki w `www/`
   przez FTP, **nie nadpisuj `api/config.php` ani `pitole.sqlite`**.
 - **Proste zmiany schematu (dodanie kolumny):** robi je **auto-migracja** w `api/db.php`
-  (`Repo::migrate`, przy pierwszym połączeniu, MySQL i SQLite) — nie trzeba ruszać bazy ręcznie.
+  (`Repo::migrate`, przy pierwszym połączeniu) — nie trzeba ruszać bazy ręcznie.
   Auto-deploy nadal nie dotyka pliku bazy; kolumnę dokłada sam kod przy starcie.
 - **Większe zmiany schematu** (nowe tabele, zmiana typów): brak systemu migracji — nanieś
   ręcznie na bazie produkcyjnej (pobierz `pitole.sqlite` przez FTP, `sqlite3 pitole.sqlite <
-  zmiana.sql`, wgraj z powrotem; albo phpMyAdmin przy MySQL).
+  zmiana.sql`, wgraj z powrotem).
 
 ## Bezpieczeństwo
 
@@ -155,17 +155,3 @@ workflow**). Postęp i logi widać w zakładce **Actions**.
   serwowanie po HTTP. Po wdrożeniu potwierdź, że `…/api/pitole.sqlite` daje **403**.
 - Dostęp chroniony wspólnym hasłem + sesją; HTTPS wymuszony przez `www/.htaccess`.
 - Do CI używaj dedykowanego użytkownika FTP (nie głównego konta).
-
-## Wariant MySQL (opcjonalnie — płatny plan)
-
-Gdybyś przeszedł na hosting z MySQL (np. Perso/Pro):
-1. Manager → **Bazy danych** → utwórz bazę MySQL (zapisz host, nazwę, użytkownika, hasło).
-2. **phpMyAdmin** → Import → wgraj [`schema.sql`](../schema.sql).
-3. W `api/config.php` ustaw DSN MySQL zamiast SQLite:
-   ```php
-   'db_dsn'  => 'mysql:host=xxxx.mysql.db;dbname=NAZWA;charset=utf8mb4',
-   'db_user' => 'UZYTKOWNIK',
-   'db_pass' => 'HASLO',
-   ```
-4. Rozszerzenie `pdo_mysql` musi być włączone. Reszta (frontend, deploy) bez zmian — pamiętaj
-   tylko, że wtedy `pitole.sqlite` nie jest używany.

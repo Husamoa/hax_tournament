@@ -11,8 +11,8 @@
 
 FROM php:8.2-apache
 
-# Sterownik MySQL (w obrazie bazowym jest tylko pdo_sqlite)
-RUN docker-php-ext-install pdo_mysql
+# Baza: SQLite (pdo_sqlite jest już w obrazie bazowym — jak na produkcji OVH).
+# Żadnego serwera bazy ani dodatkowych sterowników nie instalujemy.
 
 # API poza DocumentRoot, dostępne pod /api (handler PHP z obrazu działa globalnie)
 RUN printf 'Alias /api /var/www/api\n<Directory /var/www/api>\n    Require all granted\n</Directory>\n' \

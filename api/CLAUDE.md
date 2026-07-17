@@ -5,7 +5,7 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 ## Pliki
 
 - **`db.php`** — jedyna warstwa danych:
-  - `DB::pdo()` — leniwe połączenie PDO wg `config.php` (MySQL lub SQLite, `ERRMODE_EXCEPTION`).
+  - `DB::pdo()` — leniwe połączenie PDO (SQLite) wg `config.php` (`ERRMODE_EXCEPTION`, `PRAGMA foreign_keys=ON`).
   - `Repo` — statyczne metody z **całym SQL** aplikacji. Nowe zapytania dodawaj TUTAJ.
 - **`index.php`** — router. Parsuje `?r=<zasób>` + metodę HTTP, woła `Repo`, zwraca JSON.
 - **`config.php`** — sekrety (DSN, `password_hash`). Gitignored. Wzór: `../config.sample.php`.
@@ -80,4 +80,4 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 ## Zgodność
 
 Kod celuje w PHP 8.0+ (`str_starts_with`, typy). Na OVH ustaw PHP 8.x w Managerze.
-Wymagane rozszerzenia: `pdo_sqlite` (produkcja i dev), `mbstring`. (Gdyby MySQL — `pdo_mysql`.)
+Wymagane rozszerzenia: `pdo_sqlite` i `mbstring` (są na darmowym planie OVH oraz w obrazie Docker).

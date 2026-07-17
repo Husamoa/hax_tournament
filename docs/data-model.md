@@ -1,6 +1,6 @@
 # Model danych
 
-Schemat: [`schema.sqlite.sql`](../schema.sqlite.sql) (SQLite — produkcja i dev), [`schema.sql`](../schema.sql) (MySQL — opcjonalnie, płatny plan).
+Schemat: [`schema.sqlite.sql`](../schema.sqlite.sql) (SQLite — ta sama baza lokalnie i na produkcji).
 Dostęp: wyłącznie przez `Repo` w [`api/db.php`](../api/db.php).
 
 ## Tabele

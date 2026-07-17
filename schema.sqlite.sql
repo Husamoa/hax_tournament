@@ -1,6 +1,6 @@
--- Pitole — schemat SQLite do developmentu lokalnego (bez serwera MySQL)
+-- Pitole — schemat bazy (SQLite). Ten sam schemat lokalnie i na produkcji (OVH).
 -- Utworzenie bazy:  sqlite3 api/pitole.sqlite < schema.sqlite.sql
--- Produkcja (OVH) używa schema.sql (MySQL).
+--             albo:  php -r '$p=new PDO("sqlite:api/pitole.sqlite");$p->exec(file_get_contents("schema.sqlite.sql"));'
 
 PRAGMA foreign_keys = ON;
 
@@ -46,7 +46,9 @@ CREATE TABLE matches (
 CREATE INDEX idx_m_t ON matches(tournament_id);
 
 -- ------------------------------------------------------------------ STATYSTYKI
--- (opis: patrz schema.sql). Warstwa name-based; most do turnieju = nick + aliasy.
+-- Warstwa name-based (gracze po nicku); most do turnieju = nick + aliasy.
+-- Dwa źródła w jednej tabeli: mecze z pokoju HaxBall (tamper) i dodane ręcznie
+-- (room = 'ręczny'). Opis modelu: docs/data-model.md.
 
 CREATE TABLE stat_matches (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
