@@ -25,6 +25,7 @@ const state = {
   statsPlayer: null, // wybrany gracz (profil)
   statsExpanded: new Set(), // rozwinięte mecze (id) w historii statystyk
   statsSort: { col: 'elo', dir: 'desc' }, // sortowanie tabeli rankingu (klik nagłówka)
+  statsAddOpen: false, // otwarty formularz ręcznego dodawania meczu (subtab Mecze)
   h2hA: null,
   h2hB: null,
 };
@@ -868,8 +869,9 @@ function drawStatsShell() {
 
 function renderStatsSub() {
   const box = $('#statsbody');
-  if (!state.statsMatches.length && state.statsSub !== 'aliasy') {
-    box.innerHTML = `<div class="empty">Brak meczów. Włącz tampera w pokoju HaxBall albo wpisz wyniki w turnieju.</div>`;
+  // Mecze i Aliasy działają też przy pustej bazie (można dodać pierwszy mecz / alias).
+  if (!state.statsMatches.length && state.statsSub !== 'aliasy' && state.statsSub !== 'mecze') {
+    box.innerHTML = `<div class="empty">Brak meczów. Włącz tampera w pokoju HaxBall, wpisz wyniki w turnieju albo dodaj mecz ręcznie w zakładce <b>Mecze</b>.</div>`;
     return;
   }
   if (state.statsSub === 'ranking') return renderStatRanking(box);
@@ -969,63 +971,185 @@ function renderStatRanking(box) {
   if (cd) cd.addEventListener('click', () => { state.statsDay = null; renderStatRanking(box); });
 }
 
-// --- Historia meczów (rozwijalne gole) ---
+// --- Historia meczów (rozwijalne gole) + ręczne dodawanie ---
+const SRC_BADGE = {
+  live: '<span class="src-badge live">na żywo</span>',
+  manual: '<span class="src-badge manual">ręcznie</span>',
+  tournament: '<span class="src-badge">turniej</span>',
+};
+
+function todayISO() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Dwa niezależne kontenery: formularz (#stats-add) i lista (#stats-list). Akcje na liście
+// (rozwijanie goli, oznaczanie treningowych) przerysowują tylko listę — nie kasują wpisywanego meczu.
 function renderStatMatches(box) {
+  box.innerHTML = `<div id="stats-add"></div><div id="stats-list"></div>`;
+  renderStatAddSection(box);
+  renderStatMatchesList(box);
+}
+
+function renderStatMatchesList(box) {
+  const listBox = $('#stats-list', box);
   const ms = [...state.statsMatches].sort((a, b) => b.started_at - a.started_at);
   const teamHtml = (names, cls) =>
     `<span class="${cls}">${names.map((n) => `<a class="pname">${esc(n)}</a>`).join(' & ')}</span>`;
-  box.innerHTML = ms
-    .map((m) => {
-      const open = state.statsExpanded.has(m.id);
-      const src = m.source === 'live' ? '<span class="src-badge live">na żywo</span>' : '<span class="src-badge">turniej</span>';
-      const uncounted = !(m.red.length >= 2 && m.blue.length >= 2)
-        ? '<span class="src-badge">nieliczony</span>' : '';
-      const training = m.is_training ? '<span class="src-badge">treningowy</span>' : '';
-      const goals = m.goals.length
-        ? `<div class="goal-list">${m.goals
-            .map((g) => `<div class="goal ${g.team}">${mmss(g.time)} • ${g.own_goal ? 'samobój' : (g.scorer ? esc(g.scorer) : 'gol')}${g.assist ? ' (as. ' + esc(g.assist) + ')' : ''}</div>`)
-            .join('')}</div>`
-        : `<div class="muted" style="font-size:.85rem;margin-top:8px">Brak szczegółów goli.</div>`;
-      const toggle = m.source === 'live'
-        ? `<button class="link-btn train-match" data-id="${m.id}" data-train="${m.is_training ? 0 : 1}" style="color:var(--green-dark)">${m.is_training ? 'oznacz oficjalny' : 'oznacz treningowy'}</button>`
-        : '';
-      return `
-      <div class="match" data-mid="${m.id}">
-        <div class="match-head">
-          <span class="match-no">${fmtUnix(m.started_at)} ${src}${uncounted}${training}</span>
-          <span>${toggle}</span>
-        </div>
-        <div class="teams">
-          <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names')}</div>
-          <div class="vs">${m.red_score} : ${m.blue_score}</div>
-          <div class="team right">${teamHtml(m.blue, m.winner === 'blue' ? 'names win' : 'names')}</div>
-        </div>
-        <button class="link-btn toggle-goals" data-id="${m.id}" style="color:var(--green-dark);margin-top:6px">${open ? 'ukryj' : 'szczegóły'}</button>
-        ${open ? goals : ''}
-      </div>`;
-    })
-    .join('');
 
-  $$('.toggle-goals', box).forEach((b) =>
+  listBox.innerHTML = ms.length === 0
+    ? `<div class="empty">Brak meczów. Dodaj pierwszy przyciskiem „➕ Dodaj mecz”.</div>`
+    : ms
+        .map((m) => {
+          const open = state.statsExpanded.has(m.id);
+          const src = SRC_BADGE[m.source] || SRC_BADGE.tournament;
+          const uncounted = !(m.red.length >= 2 && m.blue.length >= 2)
+            ? '<span class="src-badge">nieliczony</span>' : '';
+          const training = m.is_training ? '<span class="src-badge">treningowy</span>' : '';
+          const goals = m.goals.length
+            ? `<div class="goal-list">${m.goals
+                .map((g) => `<div class="goal ${g.team}">${mmss(g.time)} • ${g.own_goal ? 'samobój' : (g.scorer ? esc(g.scorer) : 'gol')}${g.assist ? ' (as. ' + esc(g.assist) + ')' : ''}</div>`)
+                .join('')}</div>`
+            : `<div class="muted" style="font-size:.85rem;margin-top:8px">Brak szczegółów goli.</div>`;
+          // mecze ze statystyk (na żywo / ręczne) można oznaczać treningowymi; turniejowe nie
+          const toggle = m.source !== 'tournament'
+            ? `<button class="link-btn train-match" data-id="${m.id}" data-train="${m.is_training ? 0 : 1}" style="color:var(--green-dark)">${m.is_training ? 'oznacz oficjalny' : 'oznacz treningowy'}</button>`
+            : '';
+          return `
+          <div class="match" data-mid="${m.id}">
+            <div class="match-head">
+              <span class="match-no">${fmtUnix(m.started_at)} ${src}${uncounted}${training}</span>
+              <span>${toggle}</span>
+            </div>
+            <div class="teams">
+              <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names')}</div>
+              <div class="vs">${m.red_score} : ${m.blue_score}</div>
+              <div class="team right">${teamHtml(m.blue, m.winner === 'blue' ? 'names win' : 'names')}</div>
+            </div>
+            <button class="link-btn toggle-goals" data-id="${m.id}" style="color:var(--green-dark);margin-top:6px">${open ? 'ukryj' : 'szczegóły'}</button>
+            ${open ? goals : ''}
+          </div>`;
+        })
+        .join('');
+
+  $$('.toggle-goals', listBox).forEach((b) =>
     b.addEventListener('click', () => {
       const id = b.dataset.id;
       if (state.statsExpanded.has(id)) state.statsExpanded.delete(id);
       else state.statsExpanded.add(id);
-      renderStatMatches(box);
+      renderStatMatchesList(box);
     }),
   );
-  $$('.pname', box).forEach((a) => a.addEventListener('click', () => goToPlayer(a.textContent)));
-  $$('.train-match', box).forEach((b) =>
+  $$('.pname', listBox).forEach((a) => a.addEventListener('click', () => goToPlayer(a.textContent)));
+  $$('.train-match', listBox).forEach((b) =>
     b.addEventListener('click', async () => {
       try {
         await api.setStatMatchTraining(Number(b.dataset.id.slice(1)), b.dataset.train === '1'); // 'L<n>' -> n
         await loadStats();
-        renderStatMatches(box);
+        renderStatMatchesList(box);
       } catch (err) {
         toast(err.message, true);
       }
     }),
   );
+}
+
+// Sekcja ręcznego dodawania meczu (przycisk + rozwijany formularz), nad listą.
+function renderStatAddSection(box) {
+  const wrap = $('#stats-add', box);
+  wrap.innerHTML = statAddFormHtml();
+
+  $('#am-toggle', wrap).addEventListener('click', () => {
+    state.statsAddOpen = !state.statsAddOpen;
+    renderStatAddSection(box); // tylko formularz — lista i jej rozwinięcia zostają
+  });
+
+  const save = $('#am-save', wrap);
+  if (!save) return;
+
+  const vals = (cls) =>
+    $$('.' + cls, wrap).map((i) => i.value.trim()).filter((v) => v !== '');
+
+  save.addEventListener('click', async () => {
+    const errBox = $('#am-err', wrap);
+    errBox.textContent = '';
+    const red = vals('am-red');
+    const blue = vals('am-blue');
+    if (red.length === 0 || blue.length === 0) {
+      errBox.textContent = 'Podaj skład obu drużyn (min. 1 gracz).';
+      return;
+    }
+    const all = [...red, ...blue];
+    if (new Set(all.map((n) => n.toLowerCase())).size !== all.length) {
+      errBox.textContent = 'Gracze w meczu muszą być różni.';
+      return;
+    }
+    const sv = validateScore($('#am-sa', wrap).value, $('#am-sb', wrap).value);
+    if (!sv.ok) {
+      errBox.textContent = sv.error;
+      return;
+    }
+    const dateStr = $('#am-date', wrap).value;
+    const payload = { red, blue, red_score: sv.a, blue_score: sv.b };
+    if (dateStr) {
+      const t = new Date(dateStr + 'T12:00:00').getTime();
+      if (!Number.isNaN(t)) payload.started_at = Math.floor(t / 1000);
+    }
+    save.disabled = true;
+    try {
+      const res = await api.addStatMatch(payload);
+      state.statsAddOpen = false;
+      await loadStats();
+      renderStatAddSection(box); // zwiń formularz
+      renderStatMatchesList(box); // odśwież listę o nowy mecz
+      toast(res && res.linked ? '✓ Dodano mecz (dopisano wynik do turnieju)' : '✓ Dodano mecz');
+    } catch (err) {
+      save.disabled = false;
+      errBox.textContent = err.message;
+    }
+  });
+}
+
+// HTML formularza ręcznego dodawania meczu.
+function statAddFormHtml() {
+  const names = statPlayerNames();
+  const nickInputs = (cls) =>
+    [1, 2, 3]
+      .map((i) => `<input class="${cls}" list="am-nicks" placeholder="Gracz ${i}${i === 3 ? ' (opc.)' : ''}" maxlength="64" style="flex:1;min-width:0" />`)
+      .join('');
+  const form = !state.statsAddOpen
+    ? ''
+    : `
+    <div class="card" id="add-match-card">
+      <h3 style="margin-top:0">Dodaj mecz ręcznie</h3>
+      <p class="muted" style="font-size:.85rem;margin-top:0">Wpisz składy i wynik (bez goli). Mecz trafia do statystyk. Jeśli pasuje składem do meczu aktywnego turnieju (z auto-uzupełnianiem) — dopisze mu wynik.</p>
+      <datalist id="am-nicks">${names.map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+
+      <label class="muted">Drużyna A (czerwoni)</label>
+      <div class="row" style="margin-top:6px">${nickInputs('am-red')}</div>
+
+      <label class="muted" style="display:block;margin-top:12px">Wynik (A : B)</label>
+      <div class="row" style="margin-top:6px;justify-content:center">
+        <input id="am-sa" type="number" min="0" inputmode="numeric" placeholder="A" style="width:80px;text-align:center" />
+        <span class="vs">:</span>
+        <input id="am-sb" type="number" min="0" inputmode="numeric" placeholder="B" style="width:80px;text-align:center" />
+      </div>
+
+      <label class="muted" style="display:block;margin-top:12px">Drużyna B (niebiescy)</label>
+      <div class="row" style="margin-top:6px">${nickInputs('am-blue')}</div>
+
+      <label class="muted" style="display:block;margin-top:12px">Data</label>
+      <input id="am-date" type="date" value="${todayISO()}" max="${todayISO()}" style="margin-top:6px" />
+
+      <div class="error" id="am-err"></div>
+      <button class="btn btn-primary btn-block" id="am-save" style="margin-top:8px">Dodaj mecz</button>
+    </div>`;
+  return `
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn btn-ghost" id="am-toggle">${state.statsAddOpen ? '✕ Anuluj' : '➕ Dodaj mecz'}</button>
+    </div>
+    ${form}`;
 }
 
 // --- Profil gracza ---

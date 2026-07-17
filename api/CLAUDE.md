@@ -29,7 +29,8 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 | POST | `ingest` | `{room,red[],blue[],red_score,blue_score,winner,goals[]}` | **BEZ auth** — mecz z HaxBall (tamper) + auto-link do turnieju |
 | GET | `stats` | — | surowe mecze (na żywo + rzut turniejowy, dedup) + aliasy; klient liczy resztę |
 | GET/POST/DELETE | `aliases` | `{alias,canonical}` / `&alias=` | scalanie nicków |
-| PATCH | `stat_matches` | `&id=` + `{is_training}` | oznacz mecz na żywo treningowy (1) / oficjalny (0) — odwracalne, bez usuwania |
+| POST | `stat_matches` | `{red[],blue[],red_score,blue_score,started_at?}` | ręczne dodanie meczu (name-based, przez `ingestStatMatch` → auto-link); `room=Repo::MANUAL_ROOM` |
+| PATCH | `stat_matches` | `&id=` + `{is_training}` | oznacz mecz na żywo/ręczny treningowy (1) / oficjalny (0) — odwracalne, bez usuwania |
 
 Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 
@@ -40,6 +41,12 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
   wpis wyniku do `matches` + zapamiętanie `tournament_match_id`).
 - `statData()` — łączy mecze na żywo z rzutem meczów turniejowych z wynikiem, pomijając te już
   reprezentowane przez mecz na żywo (dedup po `tournament_match_id`). Zwraca kształt name-based.
+  `source` meczu z `stat_matches`: `manual` gdy `room === Repo::MANUAL_ROOM` (dodany ręcznie),
+  inaczej `live`.
+- **Ręczny mecz** (`POST ?r=stat_matches`): waliduje składy (1–3/drużynę, gracze różni,
+  case-insensitive) i wynik (całkowity ≥ 0, bez remisu), po czym woła `ingestStatMatch` z
+  `room=Repo::MANUAL_ROOM` — więc korzysta z tego samego auto-linku do aktywnego turnieju
+  (z `auto_fill=1`) co mecze z pokoju. Gole zawsze puste.
 - Aliasy: `aliasMap()`/`resolve()` (płaskie mapowanie, spłaszczanie łańcucha), `setAlias`/`deleteAlias`.
 
 ## Zasady

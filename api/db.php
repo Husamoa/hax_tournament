@@ -59,6 +59,9 @@ final class DB
 
 final class Repo
 {
+    /** Marker pokoju dla meczów dodanych ręcznie (odróżnia je od meczów z pokoju HaxBall). */
+    public const MANUAL_ROOM = 'ręczny';
+
     private static function now(): string
     {
         return date('Y-m-d H:i:s');
@@ -539,7 +542,7 @@ final class Repo
             }
             $matches[] = [
                 'id'          => 'L' . $id,
-                'source'      => 'live',
+                'source'      => $r['room'] === self::MANUAL_ROOM ? 'manual' : 'live',
                 'is_training' => (int) $r['is_training'] === 1,
                 'started_at' => (float) $r['started_at'],
                 'red_score'  => (int) $r['red_score'],

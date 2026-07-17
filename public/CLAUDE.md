@@ -38,7 +38,7 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
   usuwanie) przerysowują tylko listę, więc nie kasują wpisywanego meczu. Walidacja kliencka
   lustrzana do serwerowej (`validateScore` + składy różne/niepuste); po zapisie `api.addStatMatch`
   → `loadStats` → toast (z informacją o auto-linku, jeśli `linked`). Mecze `source==='manual'`
-  mają badge „ręcznie” i są usuwalne (jak `live`); mecze z turnieju — nie.
+  mają badge „ręcznie” i można je oznaczać treningowymi (jak `live`); mecze z turnieju — nie.
 
 ## Przepływ ekranów
 

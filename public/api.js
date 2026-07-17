@@ -55,6 +55,7 @@ export const api = {
 
   // statystyki (surowe mecze + aliasy — liczone po stronie klienta w stats.js)
   stats: () => req('GET', 'stats'),
+  addStatMatch: (payload) => req('POST', 'stat_matches', {}, payload),
   setStatMatchTraining: (id, training) => req('PATCH', 'stat_matches', { id }, { is_training: training ? 1 : 0 }),
 
   // aliasy (scalanie nicków)
