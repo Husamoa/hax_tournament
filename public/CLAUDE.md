@@ -29,16 +29,19 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - `subtab` (`mecze`|`tabela`), `editing` (edycja składów), `historyDetail`
 - **statystyki:** `statsRaw` (surowe z API), `statsMatches` (po aliasach), `statsSub`
   (`ranking`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsCat`/`statsDay` (filtry),
-  `statsPlayer`, `statsExpanded` (rozwinięte mecze), `statsAddOpen` (otwarty formularz
-  ręcznego dodawania meczu w subtab Mecze), `h2hA`/`h2hB`. Dane ładowane leniwie przy
-  wejściu w zakładkę (`loadStats`), przycisk „↻ Odśwież”. Nazwy graczy przez `esc()`.
-- **Ręczne dodawanie meczu (subtab Mecze):** `renderStatMatches` dzieli widok na dwa
-  kontenery — `#stats-add` (`renderStatAddSection`: przycisk + rozwijany formularz) i
-  `#stats-list` (`renderStatMatchesList`: lista meczów). Akcje na liście (rozwijanie goli,
-  usuwanie) przerysowują tylko listę, więc nie kasują wpisywanego meczu. Walidacja kliencka
-  lustrzana do serwerowej (`validateScore` + składy różne/niepuste); po zapisie `api.addStatMatch`
-  → `loadStats` → toast (z informacją o auto-linku, jeśli `linked`). Mecze `source==='manual'`
-  mają badge „ręcznie” i można je oznaczać treningowymi (jak `live`); mecze z turnieju — nie.
+  `statsPlayer`, `statsExpanded` (rozwinięte mecze), `statsForm` (formularz meczu ręcznego:
+  `null` | `{mode:'add'}` | `{mode:'edit', id, red, blue, red_score, blue_score, started_at}`),
+  `h2hA`/`h2hB`. Dane ładowane leniwie przy wejściu w zakładkę (`loadStats`), przycisk
+  „↻ Odśwież”. Nazwy graczy przez `esc()`.
+- **Ręczne mecze (subtab Mecze):** `renderStatMatches` dzieli widok na dwa kontenery —
+  `#stats-add` (`renderStatAddSection`: przycisk + rozwijany formularz add/edit wg `statsForm`) i
+  `#stats-list` (`renderStatMatchesList`: lista). Akcje na liście (rozwijanie goli, edycja,
+  usuwanie, oznaczanie treningowych) przerysowują tylko listę, więc nie kasują wpisywanego meczu.
+  Formularz: składy (datalist nicków), wynik, **data+godzina** (`datetime-local`). Walidacja
+  kliencka lustrzana do serwerowej (`validateScore` + składy różne/niepuste); zapis przez
+  `api.addStatMatch` (POST) albo `api.updateStatMatch` (PUT, tryb edit) → `loadStats` → toast.
+  Mecze `source==='manual'` mają badge „ręcznie” oraz akcje **edytuj / usuń** (`api.deleteStatMatch`)
+  i oznaczanie treningowym; `live` — tylko treningowy; turniejowe — brak akcji.
 
 ## Przepływ ekranów
 

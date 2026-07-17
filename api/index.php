@@ -23,8 +23,10 @@ declare(strict_types=1);
  *   GET    api/index.php?r=aliases
  *   POST   api/index.php?r=aliases         {alias, canonical}   (scalanie nicków)
  *   DELETE api/index.php?r=aliases&alias=NICK
- *   POST   api/index.php?r=stat_matches     {red[],blue[],red_score,blue_score,started_at?}  (ręczny mecz)
+ *   POST   api/index.php?r=stat_matches     {red[],blue[],red_score,blue_score,started_at?}  (dodaj ręczny mecz)
+ *   PUT    api/index.php?r=stat_matches&id=ID {red[],blue[],red_score,blue_score,started_at?}  (edytuj ręczny mecz)
  *   PATCH  api/index.php?r=stat_matches&id=ID  {is_training}  (oznacz treningowy/oficjalny)
+ *   DELETE api/index.php?r=stat_matches&id=ID   (usuń ręczny mecz)
  *
  * Wszystko poza session/login/ingest wymaga zalogowania (wspólne hasło ekipy -> sesja).
  */
@@ -64,6 +66,60 @@ function require_auth(): void
     if (!is_authed()) {
         err('Wymagane logowanie.', 401);
     }
+}
+
+/**
+ * Waliduje i normalizuje body ręcznego meczu (POST/PUT ?r=stat_matches). Przy błędzie kończy
+ * przez err(). Zwraca payload gotowy dla Repo: [started_at, red_score, blue_score, winner, red[], blue[]].
+ */
+function manual_match_payload(array $b): array
+{
+    $clean = static function ($list): array {
+        $out = [];
+        foreach (is_array($list) ? $list : [] as $n) {
+            $n = trim((string) $n);
+            if ($n !== '') {
+                $out[] = $n;
+            }
+        }
+        return $out;
+    };
+    $red = $clean($b['red'] ?? []);
+    $blue = $clean($b['blue'] ?? []);
+    if (count($red) === 0 || count($blue) === 0) {
+        err('Podaj skład obu drużyn.');
+    }
+    if (count($red) > 3 || count($blue) > 3) {
+        err('Maksymalnie 3 graczy w drużynie.');
+    }
+    $all = array_merge($red, $blue);
+    if (count(array_unique(array_map('mb_strtolower', $all))) !== count($all)) {
+        err('Gracze w meczu muszą być różni.');
+    }
+    $a = $b['red_score'] ?? null;
+    $bb = $b['blue_score'] ?? null;
+    if (!is_numeric($a) || !is_numeric($bb) || (int) $a < 0 || (int) $bb < 0
+        || (float) $a != (int) $a || (float) $bb != (int) $bb) {
+        err('Wynik musi być liczbą całkowitą ≥ 0.');
+    }
+    $a = (int) $a;
+    $bb = (int) $bb;
+    if ($a === $bb) {
+        err('Remis niedozwolony — popraw wynik.');
+    }
+    $now = time();
+    $started = is_numeric($b['started_at'] ?? null) ? (float) $b['started_at'] : $now;
+    if ($started > $now + 86400 || $started < 946684800) {
+        $started = $now; // spoza sensownego zakresu -> teraz
+    }
+    return [
+        'started_at' => $started,
+        'red_score'  => $a,
+        'blue_score' => $bb,
+        'winner'     => $a > $bb ? 'red' : 'blue',
+        'red'        => $red,
+        'blue'       => $blue,
+    ];
 }
 
 // --- sesja (długa, bezpieczne cookie; secure tylko pod HTTPS) ---
@@ -335,58 +391,32 @@ try {
             require_auth();
             if ($method === 'POST') {
                 // Ręczne dodanie meczu do statystyk (name-based, jak mecz z pokoju).
-                $b = body_json();
-                $clean = static function ($list): array {
-                    $out = [];
-                    foreach (is_array($list) ? $list : [] as $n) {
-                        $n = trim((string) $n);
-                        if ($n !== '') {
-                            $out[] = $n;
-                        }
-                    }
-                    return $out;
-                };
-                $red = $clean($b['red'] ?? []);
-                $blue = $clean($b['blue'] ?? []);
-                if (count($red) === 0 || count($blue) === 0) {
-                    err('Podaj skład obu drużyn.');
-                }
-                if (count($red) > 3 || count($blue) > 3) {
-                    err('Maksymalnie 3 graczy w drużynie.');
-                }
-                $all = array_merge($red, $blue);
-                if (count(array_unique(array_map('mb_strtolower', $all))) !== count($all)) {
-                    err('Gracze w meczu muszą być różni.');
-                }
-                $a = $b['red_score'] ?? null;
-                $bb = $b['blue_score'] ?? null;
-                if (!is_numeric($a) || !is_numeric($bb) || (int) $a < 0 || (int) $bb < 0
-                    || (float) $a != (int) $a || (float) $bb != (int) $bb) {
-                    err('Wynik musi być liczbą całkowitą ≥ 0.');
-                }
-                $a = (int) $a;
-                $bb = (int) $bb;
-                if ($a === $bb) {
-                    err('Remis niedozwolony — popraw wynik.');
-                }
-                $now = time();
-                $started = is_numeric($b['started_at'] ?? null) ? (float) $b['started_at'] : $now;
-                if ($started > $now + 86400 || $started < 946684800) {
-                    $started = $now; // spoza sensownego zakresu -> teraz
-                }
+                $p = manual_match_payload(body_json());
                 $res = Repo::ingestStatMatch([
                     'room'         => Repo::MANUAL_ROOM,
-                    'started_at'   => $started,
-                    'ended_at'     => $started,
+                    'started_at'   => $p['started_at'],
+                    'ended_at'     => $p['started_at'],
                     'duration_sec' => 0,
-                    'red_score'    => $a,
-                    'blue_score'   => $bb,
-                    'winner'       => $a > $bb ? 'red' : 'blue',
-                    'red'          => $red,
-                    'blue'         => $blue,
+                    'red_score'    => $p['red_score'],
+                    'blue_score'   => $p['blue_score'],
+                    'winner'       => $p['winner'],
+                    'red'          => $p['red'],
+                    'blue'         => $p['blue'],
                     'goals'        => [],
                 ]);
                 out(['id' => $res['id'], 'linked' => $res['linked']], 201);
+            }
+            if ($method === 'PUT') {
+                // Edycja meczu ręcznego (składy + wynik + czas). Tylko mecze dodane ręcznie.
+                if ($id <= 0) {
+                    err('Brak id meczu.');
+                }
+                if (Repo::statMatchRoom($id) !== Repo::MANUAL_ROOM) {
+                    err('Edytować można tylko mecze dodane ręcznie.', 403);
+                }
+                $p = manual_match_payload(body_json());
+                Repo::updateManualMatch($id, $p);
+                out(['ok' => true]);
             }
             if ($method === 'PATCH') {
                 if ($id <= 0) {
@@ -394,6 +424,17 @@ try {
                 }
                 $b = body_json();
                 Repo::setStatMatchTraining($id, !empty($b['is_training']));
+                out(['ok' => true]);
+            }
+            if ($method === 'DELETE') {
+                // Usuwanie tylko meczów dodanych ręcznie (na żywo z pokoju → oznacz treningowy).
+                if ($id <= 0) {
+                    err('Brak id meczu.');
+                }
+                if (Repo::statMatchRoom($id) !== Repo::MANUAL_ROOM) {
+                    err('Usuwać można tylko mecze dodane ręcznie.', 403);
+                }
+                Repo::deleteStatMatch($id);
                 out(['ok' => true]);
             }
             err('Metoda niedozwolona.', 405);

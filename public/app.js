@@ -25,7 +25,7 @@ const state = {
   statsPlayer: null, // wybrany gracz (profil)
   statsExpanded: new Set(), // rozwinięte mecze (id) w historii statystyk
   statsSort: { col: 'elo', dir: 'desc' }, // sortowanie tabeli rankingu (klik nagłówka)
-  statsAddOpen: false, // otwarty formularz ręcznego dodawania meczu (subtab Mecze)
+  statsForm: null, // formularz meczu ręcznego: null | {mode:'add'} | {mode:'edit', id, red, blue, red_score, blue_score, started_at}
   h2hA: null,
   h2hB: null,
 };
@@ -978,14 +978,16 @@ const SRC_BADGE = {
   tournament: '<span class="src-badge">turniej</span>',
 };
 
-function todayISO() {
-  const d = new Date();
+// Unix (s) -> wartość dla <input type="datetime-local"> (lokalny czas, do minut).
+function toLocalDatetime(unixSec) {
+  const d = new Date(unixSec * 1000);
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Dwa niezależne kontenery: formularz (#stats-add) i lista (#stats-list). Akcje na liście
-// (rozwijanie goli, oznaczanie treningowych) przerysowują tylko listę — nie kasują wpisywanego meczu.
+// (rozwijanie goli, edycja, usuwanie, oznaczanie treningowych) przerysowują tylko listę —
+// nie kasują wpisywanego/edytowanego meczu.
 function renderStatMatches(box) {
   box.innerHTML = `<div id="stats-add"></div><div id="stats-list"></div>`;
   renderStatAddSection(box);
@@ -1003,6 +1005,7 @@ function renderStatMatchesList(box) {
     : ms
         .map((m) => {
           const open = state.statsExpanded.has(m.id);
+          const editing = state.statsForm && state.statsForm.mode === 'edit' && state.statsForm.id === m.id;
           const src = SRC_BADGE[m.source] || SRC_BADGE.tournament;
           const uncounted = !(m.red.length >= 2 && m.blue.length >= 2)
             ? '<span class="src-badge">nieliczony</span>' : '';
@@ -1012,22 +1015,28 @@ function renderStatMatchesList(box) {
                 .map((g) => `<div class="goal ${g.team}">${mmss(g.time)} • ${g.own_goal ? 'samobój' : (g.scorer ? esc(g.scorer) : 'gol')}${g.assist ? ' (as. ' + esc(g.assist) + ')' : ''}</div>`)
                 .join('')}</div>`
             : `<div class="muted" style="font-size:.85rem;margin-top:8px">Brak szczegółów goli.</div>`;
-          // mecze ze statystyk (na żywo / ręczne) można oznaczać treningowymi; turniejowe nie
-          const toggle = m.source !== 'tournament'
+          // akcje zależne od źródła: turniej — brak; na żywo — tylko treningowy; ręczne — edytuj/usuń/treningowy
+          const trainBtn = m.source !== 'tournament'
             ? `<button class="link-btn train-match" data-id="${m.id}" data-train="${m.is_training ? 0 : 1}" style="color:var(--green-dark)">${m.is_training ? 'oznacz oficjalny' : 'oznacz treningowy'}</button>`
             : '';
+          const manualBtns = m.source === 'manual'
+            ? `<button class="link-btn edit-match" data-id="${m.id}" style="color:var(--green-dark)">${editing ? 'edytujesz…' : 'edytuj'}</button>`
+              + `<button class="link-btn del-match" data-id="${m.id}" style="color:var(--danger)">usuń</button>`
+            : '';
           return `
-          <div class="match" data-mid="${m.id}">
+          <div class="match ${editing ? 'editing' : ''}" data-mid="${m.id}">
             <div class="match-head">
               <span class="match-no">${fmtUnix(m.started_at)} ${src}${uncounted}${training}</span>
-              <span>${toggle}</span>
             </div>
             <div class="teams">
               <div class="team">${teamHtml(m.red, m.winner === 'red' ? 'names win' : 'names')}</div>
               <div class="vs">${m.red_score} : ${m.blue_score}</div>
               <div class="team right">${teamHtml(m.blue, m.winner === 'blue' ? 'names win' : 'names')}</div>
             </div>
-            <button class="link-btn toggle-goals" data-id="${m.id}" style="color:var(--green-dark);margin-top:6px">${open ? 'ukryj' : 'szczegóły'}</button>
+            <div class="match-actions">
+              <button class="link-btn toggle-goals" data-id="${m.id}" style="color:var(--green-dark)">${open ? 'ukryj' : 'szczegóły'}</button>
+              ${manualBtns}${trainBtn}
+            </div>
             ${open ? goals : ''}
           </div>`;
         })
@@ -1042,6 +1051,40 @@ function renderStatMatchesList(box) {
     }),
   );
   $$('.pname', listBox).forEach((a) => a.addEventListener('click', () => goToPlayer(a.textContent)));
+  $$('.edit-match', listBox).forEach((b) =>
+    b.addEventListener('click', () => {
+      const m = state.statsMatches.find((x) => x.id === b.dataset.id);
+      if (!m) return;
+      state.statsForm = {
+        mode: 'edit',
+        id: m.id,
+        red: [...m.red],
+        blue: [...m.blue],
+        red_score: m.red_score,
+        blue_score: m.blue_score,
+        started_at: m.started_at,
+      };
+      renderStatAddSection(box);
+      renderStatMatchesList(box); // odśwież oznaczenie „edytujesz…”
+      $('#add-match-card', box)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }),
+  );
+  $$('.del-match', listBox).forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm('Usunąć ten mecz ze statystyk? Tej operacji nie można cofnąć.')) return;
+      try {
+        await api.deleteStatMatch(Number(b.dataset.id.slice(1))); // 'L<n>' -> n
+        // jeśli usuwamy właśnie edytowany mecz — zamknij formularz
+        if (state.statsForm && state.statsForm.id === b.dataset.id) state.statsForm = null;
+        await loadStats();
+        renderStatAddSection(box);
+        renderStatMatchesList(box);
+        toast('✓ Usunięto mecz');
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }),
+  );
   $$('.train-match', listBox).forEach((b) =>
     b.addEventListener('click', async () => {
       try {
@@ -1055,14 +1098,15 @@ function renderStatMatchesList(box) {
   );
 }
 
-// Sekcja ręcznego dodawania meczu (przycisk + rozwijany formularz), nad listą.
+// Sekcja formularza meczu ręcznego (przycisk + rozwijany formularz add/edit), nad listą.
 function renderStatAddSection(box) {
   const wrap = $('#stats-add', box);
   wrap.innerHTML = statAddFormHtml();
 
   $('#am-toggle', wrap).addEventListener('click', () => {
-    state.statsAddOpen = !state.statsAddOpen;
-    renderStatAddSection(box); // tylko formularz — lista i jej rozwinięcia zostają
+    state.statsForm = state.statsForm ? null : { mode: 'add' };
+    renderStatAddSection(box);
+    renderStatMatchesList(box); // gdy zamykamy edycję — zdejmij oznaczenie „edytujesz…”
   });
 
   const save = $('#am-save', wrap);
@@ -1090,20 +1134,27 @@ function renderStatAddSection(box) {
       errBox.textContent = sv.error;
       return;
     }
-    const dateStr = $('#am-date', wrap).value;
+    const dtStr = $('#am-date', wrap).value;
     const payload = { red, blue, red_score: sv.a, blue_score: sv.b };
-    if (dateStr) {
-      const t = new Date(dateStr + 'T12:00:00').getTime();
+    if (dtStr) {
+      const t = new Date(dtStr).getTime();
       if (!Number.isNaN(t)) payload.started_at = Math.floor(t / 1000);
     }
+    const editMode = state.statsForm && state.statsForm.mode === 'edit';
     save.disabled = true;
     try {
-      const res = await api.addStatMatch(payload);
-      state.statsAddOpen = false;
+      let linked = false;
+      if (editMode) {
+        await api.updateStatMatch(Number(state.statsForm.id.slice(1)), payload); // 'L<n>' -> n
+      } else {
+        const res = await api.addStatMatch(payload);
+        linked = !!(res && res.linked);
+      }
+      state.statsForm = null;
       await loadStats();
-      renderStatAddSection(box); // zwiń formularz
-      renderStatMatchesList(box); // odśwież listę o nowy mecz
-      toast(res && res.linked ? '✓ Dodano mecz (dopisano wynik do turnieju)' : '✓ Dodano mecz');
+      renderStatAddSection(box);
+      renderStatMatchesList(box);
+      toast(editMode ? '✓ Zapisano zmiany' : (linked ? '✓ Dodano mecz (dopisano wynik do turnieju)' : '✓ Dodano mecz'));
     } catch (err) {
       save.disabled = false;
       errBox.textContent = err.message;
@@ -1111,43 +1162,49 @@ function renderStatAddSection(box) {
   });
 }
 
-// HTML formularza ręcznego dodawania meczu.
+// HTML formularza meczu ręcznego (tryb add lub edit wg state.statsForm).
 function statAddFormHtml() {
+  const f = state.statsForm;
   const names = statPlayerNames();
-  const nickInputs = (cls) =>
-    [1, 2, 3]
-      .map((i) => `<input class="${cls}" list="am-nicks" placeholder="Gracz ${i}${i === 3 ? ' (opc.)' : ''}" maxlength="64" style="flex:1;min-width:0" />`)
+  const edit = f && f.mode === 'edit';
+  const nickInputs = (cls, vals = []) =>
+    [0, 1, 2]
+      .map((i) => `<input class="${cls}" list="am-nicks" value="${esc(vals[i] || '')}" placeholder="Gracz ${i + 1}${i === 2 ? ' (opc.)' : ''}" maxlength="64" style="flex:1;min-width:0" />`)
       .join('');
-  const form = !state.statsAddOpen
+  const nowDt = toLocalDatetime(Date.now() / 1000);
+  const dtVal = edit ? toLocalDatetime(f.started_at) : nowDt;
+  const form = !f
     ? ''
     : `
     <div class="card" id="add-match-card">
-      <h3 style="margin-top:0">Dodaj mecz ręcznie</h3>
-      <p class="muted" style="font-size:.85rem;margin-top:0">Wpisz składy i wynik (bez goli). Mecz trafia do statystyk. Jeśli pasuje składem do meczu aktywnego turnieju (z auto-uzupełnianiem) — dopisze mu wynik.</p>
+      <h3 style="margin-top:0">${edit ? 'Edytuj mecz' : 'Dodaj mecz ręcznie'}</h3>
+      <p class="muted" style="font-size:.85rem;margin-top:0">${edit
+        ? 'Zmień składy, wynik lub datę. Zmiany dotyczą tylko tego meczu w statystykach.'
+        : 'Wpisz składy i wynik (bez goli). Mecz trafia do statystyk. Jeśli pasuje składem do meczu aktywnego turnieju (z auto-uzupełnianiem) — dopisze mu wynik.'}</p>
       <datalist id="am-nicks">${names.map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
 
       <label class="muted">Drużyna A (czerwoni)</label>
-      <div class="row" style="margin-top:6px">${nickInputs('am-red')}</div>
+      <div class="row" style="margin-top:6px">${nickInputs('am-red', edit ? f.red : [])}</div>
 
       <label class="muted" style="display:block;margin-top:12px">Wynik (A : B)</label>
       <div class="row" style="margin-top:6px;justify-content:center">
-        <input id="am-sa" type="number" min="0" inputmode="numeric" placeholder="A" style="width:80px;text-align:center" />
+        <input id="am-sa" type="number" min="0" inputmode="numeric" placeholder="A" value="${edit ? f.red_score : ''}" style="width:80px;text-align:center" />
         <span class="vs">:</span>
-        <input id="am-sb" type="number" min="0" inputmode="numeric" placeholder="B" style="width:80px;text-align:center" />
+        <input id="am-sb" type="number" min="0" inputmode="numeric" placeholder="B" value="${edit ? f.blue_score : ''}" style="width:80px;text-align:center" />
       </div>
 
       <label class="muted" style="display:block;margin-top:12px">Drużyna B (niebiescy)</label>
-      <div class="row" style="margin-top:6px">${nickInputs('am-blue')}</div>
+      <div class="row" style="margin-top:6px">${nickInputs('am-blue', edit ? f.blue : [])}</div>
 
-      <label class="muted" style="display:block;margin-top:12px">Data</label>
-      <input id="am-date" type="date" value="${todayISO()}" max="${todayISO()}" style="margin-top:6px" />
+      <label class="muted" style="display:block;margin-top:12px">Data i godzina</label>
+      <input id="am-date" type="datetime-local" value="${dtVal}" max="${nowDt}" style="margin-top:6px" />
 
       <div class="error" id="am-err"></div>
-      <button class="btn btn-primary btn-block" id="am-save" style="margin-top:8px">Dodaj mecz</button>
+      <button class="btn btn-primary btn-block" id="am-save" style="margin-top:8px">${edit ? 'Zapisz zmiany' : 'Dodaj mecz'}</button>
     </div>`;
   return `
     <div class="row" style="margin-bottom:10px">
-      <button class="btn btn-ghost" id="am-toggle">${state.statsAddOpen ? '✕ Anuluj' : '➕ Dodaj mecz'}</button>
+      <button class="btn btn-ghost" id="am-toggle">${f ? '✕ Anuluj' : '➕ Dodaj mecz'}</button>
     </div>
     ${form}`;
 }

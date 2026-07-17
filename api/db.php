@@ -353,6 +353,56 @@ final class Repo
             ->execute([$training ? 1 : 0, $id]);
     }
 
+    /** 'room' meczu stat_matches (rozróżnia ręczny vs z pokoju) albo null gdy nie istnieje. */
+    public static function statMatchRoom(int $id): ?string
+    {
+        $st = DB::pdo()->prepare('SELECT room FROM stat_matches WHERE id = ?');
+        $st->execute([$id]);
+        $room = $st->fetchColumn();
+        return $room === false ? null : (string) $room;
+    }
+
+    /**
+     * Aktualizuje mecz ręczny: składy + wynik + czas (room bez zmian). Świadomie NIE rusza
+     * tournament_match_id ani auto-linku — to korekta danych, nie przelinkowanie do turnieju.
+     * @param array $p ['started_at','red_score','blue_score','winner','red'=>[nick...],'blue'=>[nick...]]
+     */
+    public static function updateManualMatch(int $id, array $p): void
+    {
+        $pdo = DB::pdo();
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare(
+                'UPDATE stat_matches SET started_at = ?, ended_at = ?, red_score = ?, blue_score = ?, winner = ? WHERE id = ?'
+            )->execute([
+                (float) $p['started_at'],
+                (float) $p['started_at'],
+                (int) $p['red_score'],
+                (int) $p['blue_score'],
+                (string) $p['winner'],
+                $id,
+            ]);
+            $pdo->prepare('DELETE FROM stat_match_players WHERE match_id = ?')->execute([$id]);
+            $mp = $pdo->prepare('INSERT INTO stat_match_players (match_id, name, team) VALUES (?, ?, ?)');
+            foreach ($p['red'] as $name) {
+                $mp->execute([$id, (string) $name, 'red']);
+            }
+            foreach ($p['blue'] as $name) {
+                $mp->execute([$id, (string) $name, 'blue']);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /** Usuwa mecz ze statystyk (CASCADE usuwa stat_match_players + stat_goals). */
+    public static function deleteStatMatch(int $id): void
+    {
+        DB::pdo()->prepare('DELETE FROM stat_matches WHERE id = ?')->execute([$id]);
+    }
+
     /**
      * Zapisuje zakończony mecz z pokoju HaxBall + próbuje auto-linku do aktywnego turnieju.
      * @param array $p ['room','started_at','ended_at','duration_sec','red_score','blue_score',

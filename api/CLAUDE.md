@@ -30,7 +30,9 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 | GET | `stats` | — | surowe mecze (na żywo + rzut turniejowy, dedup) + aliasy; klient liczy resztę |
 | GET/POST/DELETE | `aliases` | `{alias,canonical}` / `&alias=` | scalanie nicków |
 | POST | `stat_matches` | `{red[],blue[],red_score,blue_score,started_at?}` | ręczne dodanie meczu (name-based, przez `ingestStatMatch` → auto-link); `room=Repo::MANUAL_ROOM` |
+| PUT | `stat_matches` | `&id=` + `{red[],blue[],red_score,blue_score,started_at?}` | edycja meczu — **tylko ręczny** (`updateManualMatch`); inaczej 403 |
 | PATCH | `stat_matches` | `&id=` + `{is_training}` | oznacz mecz na żywo/ręczny treningowy (1) / oficjalny (0) — odwracalne, bez usuwania |
+| DELETE | `stat_matches` | `&id=` | usuń mecz — **tylko ręczny** (`deleteStatMatch`, CASCADE); inaczej 403 |
 
 Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 
@@ -43,10 +45,16 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
   reprezentowane przez mecz na żywo (dedup po `tournament_match_id`). Zwraca kształt name-based.
   `source` meczu z `stat_matches`: `manual` gdy `room === Repo::MANUAL_ROOM` (dodany ręcznie),
   inaczej `live`.
-- **Ręczny mecz** (`POST ?r=stat_matches`): waliduje składy (1–3/drużynę, gracze różni,
-  case-insensitive) i wynik (całkowity ≥ 0, bez remisu), po czym woła `ingestStatMatch` z
-  `room=Repo::MANUAL_ROOM` — więc korzysta z tego samego auto-linku do aktywnego turnieju
-  (z `auto_fill=1`) co mecze z pokoju. Gole zawsze puste.
+- **Ręczny mecz** (`POST ?r=stat_matches`): `manual_match_payload()` (w `index.php`) waliduje
+  składy (1–3/drużynę, gracze różni, case-insensitive), wynik (całkowity ≥ 0, bez remisu) i czas
+  (`started_at` unix, clamp do [2000, teraz+1d]); potem `ingestStatMatch` z `room=Repo::MANUAL_ROOM`
+  — więc korzysta z tego samego auto-linku do aktywnego turnieju (z `auto_fill=1`) co mecze z pokoju.
+  Gole zawsze puste.
+- **Edycja/usuwanie ręcznego meczu:** `updateManualMatch($id,$p)` (PUT) podmienia skład + wynik +
+  czas (świadomie NIE rusza `tournament_match_id`/auto-linku — to korekta danych). `deleteStatMatch($id)`
+  (DELETE) kasuje wiersz (CASCADE zdejmuje `stat_match_players`/`stat_goals`). Oba chronione w routerze
+  przez `statMatchRoom($id) === Repo::MANUAL_ROOM` (na żywo/turniejowe → 403). Mecze z pokoju usuwa się
+  „miękko” flagą `is_training`.
 - Aliasy: `aliasMap()`/`resolve()` (płaskie mapowanie, spłaszczanie łańcucha), `setAlias`/`deleteAlias`.
 
 ## Zasady
