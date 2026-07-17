@@ -56,6 +56,12 @@ Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 - **Autoryzacja:** wspólne hasło ekipy porównywane `password_verify` z `config['password_hash']`;
   po sukcesie `session_regenerate_id(true)` + `$_SESSION['authed']=true`. Cookie `httponly`,
   `samesite=Lax`, `secure` pod HTTPS.
+- **Długa sesja (OVH):** darmowy hosting kasował sesję po ~24 min (`gc_maxlifetime`) i sprzątał
+  wspólny katalog sesji cronem — mimo długiego cookie. Dlatego `index.php`: własny
+  `session_save_path` w `api/sessions/` (host go nie rusza; chroniony `.htaccess` + gitignored,
+  tworzony w runtime; fallback do domyślnego gdy niezapisywalny), `gc_maxlifetime`+cookie = 1 rok,
+  a każde żądanie zalogowanej sesji odświeża cookie i `mtime` pliku (ślizgowo → z użyciem sesja
+  nie wygasa). Uwaga: zmiana `save_path` jednorazowo wylogowuje istniejące sesje po wdrożeniu.
 - **Transakcje:** `Repo::createTournament` wstawia nagłówek + uczestników + mecze atomowo.
 - **Migawka nazw:** `tournament_players.name_snapshot` — tabela turnieju jest odporna na
   późniejszą zmianę nazwy gracza w rosterze.

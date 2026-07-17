@@ -66,18 +66,54 @@ function require_auth(): void
     }
 }
 
-// --- sesja (bezpieczne cookie; secure tylko pod HTTPS) ---
+// --- sesja (długa, bezpieczne cookie; secure tylko pod HTTPS) ---
+// Problem na współdzielonym hostingu (OVH): mimo długiego cookie PHP kasuje pliki sesji po
+// `session.gc_maxlifetime` (domyślnie ~24 min), a host sprząta wspólny katalog sesji cronem —
+// przez co użytkownik jest wylogowywany po chwili. Dlatego: (1) trzymamy sesje we WŁASNYM
+// katalogu (host go nie rusza, GC innych kont też nie), (2) wydłużamy gc_maxlifetime,
+// (3) cookie jest długie i ślizgowe (każda wizyta przedłuża — z użyciem sesja nie wygasa).
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-session_set_cookie_params([
-    'lifetime' => 60 * 60 * 24 * 30,
+
+$sessionTtl = 60 * 60 * 24 * 365; // 1 rok
+$cookieParams = [
     'path'     => '/',
     'secure'   => $secure,
     'httponly' => true,
     'samesite' => 'Lax',
-]);
+];
+
+ini_set('session.gc_maxlifetime', (string) $sessionTtl);
+
+// Własny katalog na pliki sesji (obok bazy w api/). Gdyby był niezapisywalny — cichy fallback
+// do domyślnego save_path (nie gorzej niż dotychczas).
+$sessDir = __DIR__ . '/sessions';
+if (!is_dir($sessDir)) {
+    @mkdir($sessDir, 0700, true);
+}
+if (is_dir($sessDir) && is_writable($sessDir)) {
+    // Ochrona: pliki sesji nigdy nie mogą być serwowane po HTTP (katalog jest pod web rootem).
+    $ht = $sessDir . '/.htaccess';
+    if (!is_file($ht)) {
+        @file_put_contents(
+            $ht,
+            "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n"
+            . "<IfModule !mod_authz_core.c>\n  Order deny,allow\n  Deny from all\n</IfModule>\n"
+        );
+    }
+    session_save_path($sessDir);
+}
+
+session_set_cookie_params(['lifetime' => $sessionTtl] + $cookieParams);
 session_name('pitole_sess');
 session_start();
+
+// Ślizgowe przedłużanie: przy zalogowanej sesji odśwież cookie (kolejny rok) i mtime pliku
+// sesji, żeby aktywnie używana sesja praktycznie nigdy nie wygasała.
+if (is_authed()) {
+    $_SESSION['seen'] = time();
+    setcookie(session_name(), session_id(), ['expires' => time() + $sessionTtl] + $cookieParams);
+}
 
 $r = (string) ($_GET['r'] ?? '');
 $method = $_SERVER['REQUEST_METHOD'];

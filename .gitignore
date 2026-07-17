@@ -14,6 +14,9 @@ bot/.env
 *.sqlite
 *.sqlite3
 
+# Pliki sesji PHP (własny save_path — trzymane per-instancja, nie commitować)
+api/sessions/
+
 # Paczka wdrożeniowa na OVH (zawiera config.php z hashem i bazę) — NIGDY nie commitować
 deploy-ovh/
 
