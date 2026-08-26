@@ -205,6 +205,16 @@ export function generateSchedule3v3(playerIds, seed = 1) {
   });
 }
 
+/** Dodaj rundę rewanżową: te same mecze, ale z zamienionymi drużynami A/B. */
+export function addRematches(matches) {
+  return matches.concat(
+    matches.map((m) => ({
+      teamA: [...m.teamB],
+      teamB: [...m.teamA],
+    })),
+  );
+}
+
 /** Gracze pauzujący w danym meczu = wszyscy uczestnicy minus grający. */
 export function sittingOut(match, allPlayerIds) {
   const playing = new Set([...match.teamA, ...match.teamB]);

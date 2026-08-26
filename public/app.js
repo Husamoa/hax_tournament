@@ -1,5 +1,12 @@
 import { api } from './api.js';
-import { generateSchedule, generateSchedule3v3, sittingOut, expectedMatchCount, expectedMatchCount3v3 } from './schedule.js';
+import {
+  addRematches,
+  expectedMatchCount,
+  expectedMatchCount3v3,
+  generateSchedule,
+  generateSchedule3v3,
+  sittingOut,
+} from './schedule.js';
 import { computeRanking, validateScore } from './ranking.js';
 import * as stats from './stats.js';
 import { APP_VERSION } from './version.js';
@@ -11,8 +18,8 @@ const state = {
   players: [], // roster [{id,name,is_guest,archived}]
   tournaments: [], // podsumowania
   active: null, // pełny aktywny turniej albo null
-  draft: null, // {name, seed, playerIds:[], matches:[]}
-  setup: null, // {name, selected:Set} — ekran wyboru graczy
+  draft: null, // {name, seed, mode, rematches, playerIds:[], matches:[]}
+  setup: null, // {name, selected:Set, mode, rematches} — ekran wyboru graczy
   subtab: 'mecze', // 'mecze' | 'tabela'
   editing: false, // edycja składów w drafcie
   historyDetail: null, // pełny turniej z historii
@@ -61,6 +68,11 @@ function fmtDate(s) {
 
 function randSeed() {
   return Math.floor(Math.random() * 2 ** 31);
+}
+
+function generateTournamentSchedule(mode, playerIds, seed, rematches) {
+  const matches = mode === '3v3' ? generateSchedule3v3(playerIds, seed) : generateSchedule(playerIds, seed);
+  return rematches ? addRematches(matches) : matches;
 }
 
 // ------------------------------------------------------------------ dane
@@ -150,8 +162,9 @@ function renderTurniej() {
 
 // --- ekran wyboru graczy (nowy turniej) ---
 function renderSetup() {
-  if (!state.setup) state.setup = { name: '', selected: new Set(), mode: '2v2' };
+  if (!state.setup) state.setup = { name: '', selected: new Set(), mode: '2v2', rematches: false };
   if (!state.setup.mode) state.setup.mode = '2v2';
+  if (typeof state.setup.rematches !== 'boolean') state.setup.rematches = false;
   const roster = state.players;
   const sel = state.setup.selected;
   const n = sel.size;
@@ -172,6 +185,10 @@ function renderSetup() {
         <button type="button" class="chip ${state.setup.mode === '2v2' ? 'selected' : ''}" data-mode="2v2">2v2</button>
         <button type="button" class="chip ${state.setup.mode === '3v3' ? 'selected' : ''}" data-mode="3v3">3v3 <span class="badge">6 graczy</span></button>
       </div>
+      <label class="autofill-toggle" style="margin-top:14px">
+        <input id="t-rematches" type="checkbox" ${state.setup.rematches ? 'checked' : ''} />
+        Rewanże (każdy mecz ×2)
+      </label>
     </div>
     <div class="card">
       <h3>Kto gra?</h3>
@@ -199,13 +216,14 @@ function renderSetup() {
   const updateHint = () => {
     const k = state.setup.selected.size;
     const hint = $('#hint');
+    const multiplier = state.setup.rematches ? 2 : 1;
     if (state.setup.mode === '3v3') {
       if (k !== 6) hint.textContent = `Tryb 3v3 wymaga dokładnie 6 graczy (wybrano ${k}).`;
-      else hint.textContent = `Wybrano 6 graczy • ${expectedMatchCount3v3()} meczów`;
+      else hint.textContent = `Wybrano 6 graczy • ${expectedMatchCount3v3() * multiplier} meczów`;
       $('#gen').disabled = k !== 6;
     } else {
       if (k < 4) hint.textContent = `Wybrano ${k} — potrzeba minimum 4.`;
-      else hint.textContent = `Wybrano ${k} graczy • ${expectedMatchCount(k)} meczów`;
+      else hint.textContent = `Wybrano ${k} graczy • ${expectedMatchCount(k) * multiplier} meczów`;
       $('#gen').disabled = k < 4;
     }
   };
@@ -230,6 +248,10 @@ function renderSetup() {
   });
 
   $('#t-name').addEventListener('input', (e) => (state.setup.name = e.target.value));
+  $('#t-rematches').addEventListener('change', (e) => {
+    state.setup.rematches = e.target.checked;
+    updateHint();
+  });
 
   $('#add-guest').addEventListener('click', addGuest);
   $('#guest-name').addEventListener('keydown', (e) => {
@@ -241,8 +263,9 @@ function renderSetup() {
     const seed = randSeed();
     const mode = state.setup.mode;
     try {
-      const matches = mode === '3v3' ? generateSchedule3v3(ids, seed) : generateSchedule(ids, seed);
-      state.draft = { name: state.setup.name.trim(), seed, mode, playerIds: ids, matches };
+      const rematches = state.setup.rematches;
+      const matches = generateTournamentSchedule(mode, ids, seed, rematches);
+      state.draft = { name: state.setup.name.trim(), seed, mode, rematches, playerIds: ids, matches };
       state.editing = false;
       renderTurniej();
     } catch (err) {
@@ -281,7 +304,7 @@ function renderDraft() {
     <div class="row spread">
       <h2 style="margin:0">${esc(title)}</h2>
     </div>
-    <p class="muted">${d.playerIds.length} graczy • ${d.matches.length} meczów • ${d.mode === '3v3' ? 'każda trójka gra razem raz' : 'każda para gra razem raz'}</p>
+    <p class="muted">${d.playerIds.length} graczy • ${d.matches.length} meczów • ${d.rematches ? 'z rewanżami' : 'bez rewanżów'}</p>
     <div class="btn-row">
       <button class="btn btn-ghost" id="reshuffle">🎲 Przelosuj</button>
       <button class="btn btn-ghost" id="toggle-edit">${state.editing ? '✓ Gotowe' : '✏️ Edytuj składy'}</button>
@@ -295,7 +318,7 @@ function renderDraft() {
 
   $('#reshuffle').addEventListener('click', () => {
     d.seed = randSeed();
-    d.matches = d.mode === '3v3' ? generateSchedule3v3(d.playerIds, d.seed) : generateSchedule(d.playerIds, d.seed);
+    d.matches = generateTournamentSchedule(d.mode, d.playerIds, d.seed, d.rematches);
     renderDraftMatches(names);
   });
   $('#toggle-edit').addEventListener('click', () => {

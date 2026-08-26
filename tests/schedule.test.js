@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  addRematches,
   generateSchedule,
   generateSchedule3v3,
   sittingOut,
@@ -92,6 +93,18 @@ test('generator: ten sam seed daje identyczny harmonogram', () => {
   const a = generateSchedule([10, 20, 30, 40, 50, 60], 777);
   const b = generateSchedule([10, 20, 30, 40, 50, 60], 777);
   assert.deepEqual(a, b);
+});
+
+test('rewanże: podwajają harmonogram i zamieniają strony w drugim meczu', () => {
+  const schedule = generateSchedule([10, 20, 30, 40], 777);
+  const withRematches = addRematches(schedule);
+
+  assert.equal(schedule.length, 3);
+  assert.equal(withRematches.length, 6);
+  for (let i = 0; i < schedule.length; i++) {
+    assert.deepEqual(withRematches[i + schedule.length].teamA, schedule[i].teamB);
+    assert.deepEqual(withRematches[i + schedule.length].teamB, schedule[i].teamA);
+  }
 });
 
 // ------------------------------------------------------------------ tryb 3v3

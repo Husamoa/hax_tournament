@@ -55,6 +55,8 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
     `C(n,2)` jest nieparzysta (n=6,7), dokładnie jedna para gra 2×.
   - **3v3** (dokładnie 6 graczy) — każda trójka gra razem raz: `C(6,3)/2 = 10` meczów,
     grają wszyscy (brak pauz).
+- **Rewanże (opcjonalne):** drugi zestaw tych samych spotkań z zamienionymi drużynami A/B;
+  podwaja liczbę meczów bazowego harmonogramu.
 - **Mecz:** 2 drużyny po 2 graczy (2v2, 4 różnych; reszta pauzuje) albo po 3 graczy
   (3v3, 6 różnych). Tryb wnioskowany z długości składu — bez kolumny na `tournaments`.
 - **Punktacja:** wygrana = 3 pkt dla OBU graczy zwycięskiej drużyny, przegrana = 0.

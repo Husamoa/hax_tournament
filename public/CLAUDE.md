@@ -24,8 +24,8 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - `authed`, `tab` (`turniej`|`historia`|`gracze`)
 - `players` — roster; `tournaments` — podsumowania
 - `active` — pełny aktywny turniej lub `null`
-- `draft` — tworzony turniej przed zapisem `{name, seed, playerIds, matches}`
-- `setup` — ekran wyboru graczy `{name, selected:Set}`
+- `draft` — tworzony turniej przed zapisem `{name, seed, mode, rematches, playerIds, matches}`
+- `setup` — ekran wyboru graczy `{name, selected:Set, mode, rematches}`
 - `subtab` (`mecze`|`tabela`), `editing` (edycja składów), `historyDetail`
 - **statystyki:** `statsRaw` (surowe z API), `statsMatches` (po aliasach), `statsSub`
   (`ranking`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsCat`/`statsDay` (filtry),
@@ -49,7 +49,7 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 Login → Turniej:
   active? → widok aktywny (subtaby Mecze / Tabela na żywo) → „Zakończ"
   draft?  → podgląd harmonogramu (Przelosuj / Edytuj składy / Rozpocznij)
-  else    → format (2v2 / 3v3-dokładnie-6) + wybór graczy → „Generuj harmonogram" → draft
+  else    → format (2v2 / 3v3-dokładnie-6) + rewanże + wybór graczy → „Generuj harmonogram" → draft
 Historia → lista zakończonych → szczegóły (tabela końcowa + mecze)
 Gracze   → roster: dodaj (+ gość) / usuń (archiwizacja)
 ```

@@ -5,6 +5,10 @@ Implementacja: [`public/schedule.js`](../public/schedule.js). Testy: [`tests/sch
 Dwa tryby: **2v2** (`generateSchedule`, 4+ graczy) i **3v3** (`generateSchedule3v3`,
 dokładnie 6 graczy — sekcja na końcu).
 
+Przy tworzeniu turnieju można opcjonalnie włączyć **rewanże**. `addRematches` dokłada wtedy
+drugi zestaw tych samych spotkań z zamienionymi drużynami A/B, więc liczba meczów podwaja się
+(np. dla 4 graczy w 2v2: 3 mecze bez rewanżów albo 6 z rewanżami).
+
 ## Cel (2v2)
 
 Każda **para** graczy ma zagrać razem (jako drużyna) możliwie dokładnie raz. Jeden mecz to
