@@ -55,6 +55,16 @@ html, body {
 .login-card p { margin: 4px 0 20px; }
 .login-card input { width: 100%; margin-bottom: 12px; }
 
+/* ---------- Przerwa techniczna ---------- */
+.gear {
+  width: 72px;
+  height: 72px;
+  color: var(--green);
+  animation: gear-spin 4s linear infinite;
+}
+@keyframes gear-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gear { animation-duration: 20s; } }
+
 /* ---------- Layout ---------- */
 .topbar {
   position: sticky;
