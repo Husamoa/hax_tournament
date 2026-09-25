@@ -63,6 +63,7 @@ html, body {
   animation: gear-spin 4s linear infinite;
 }
 @keyframes gear-spin { to { transform: rotate(360deg); } }
+#maintenance p { margin-bottom: 0; text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) { .gear { animation-duration: 20s; } }
 
 /* ---------- Layout ---------- */
