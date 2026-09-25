@@ -103,14 +103,24 @@ async function init() {
     showLogin();
   });
   $('#login-form').addEventListener('submit', onLogin);
+  // przerwa techniczna: każda odpowiedź API 503 {maintenance} (api.js) zasłania całą appkę
+  document.addEventListener('pitole:maintenance', showMaintenance);
 
   try {
     const s = await api.session();
     if (s.authed) return enterApp();
   } catch (e) {
+    if (e.maintenance) return;
     /* pokaż logowanie */
   }
   showLogin();
+}
+
+function showMaintenance() {
+  stopLivePoll();
+  $('#app').classList.add('hidden');
+  $('#login').classList.add('hidden');
+  $('#maintenance').classList.remove('hidden');
 }
 
 function showLogin() {

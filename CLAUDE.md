@@ -144,6 +144,9 @@ Pełny runbook: [`docs/deployment-ovh.md`](docs/deployment-ovh.md).
   [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (testy + FTPS sync na OVH).
   Sync **nie rusza** `config.php` ani `pitole.sqlite` na serwerze.
 - **Zmiany schematu** nanoś ręcznie (brak migracji) — patrz sekcja o Dockerze wyżej i runbook.
+- **Przerwa techniczna:** stała `MAINTENANCE` na górze `api/index.php`. `true` → całe API
+  odpowiada 503 (także `?r=ingest` — mecze z tampera przepadają, tamper nie ponawia), a front
+  na tę odpowiedź pokazuje ekran „strona chwilowo niedostępna”. Wyłączenie: `false` + push.
 
 ## Konwencje
 

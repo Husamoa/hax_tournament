@@ -36,6 +36,10 @@ Cienkie API JSON w PHP 8. Cały dostęp do bazy w jednym miejscu.
 
 Wszystko poza `session`/`login`/`ingest` wymaga zalogowania (`require_auth()`).
 
+**Przerwa techniczna:** `const MAINTENANCE = true` (góra `index.php`) → każde żądanie, w tym
+`session`/`login`/`ingest`, dostaje `503 {error, maintenance:true}` zanim ruszy sesja i baza.
+Front (`api.js` → zdarzenie `pitole:maintenance`) zasłania wtedy appkę ekranem przerwy.
+
 ## Statystyki (Repo)
 
 - `ingestStatMatch($p)` — zapis meczu (`stat_matches` + `stat_match_players` + `stat_goals`)

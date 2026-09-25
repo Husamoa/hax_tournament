@@ -21,9 +21,14 @@ async function req(method, r, params = {}, body = null) {
     }
   }
   if (!res.ok) {
+    // przerwa techniczna (flaga MAINTENANCE w api/index.php) — app.js pokazuje ekran przerwy
+    if (res.status === 503 && data && data.maintenance) {
+      document.dispatchEvent(new CustomEvent('pitole:maintenance'));
+    }
     const msg = (data && data.error) || `Błąd HTTP ${res.status}`;
     const e = new Error(msg);
     e.status = res.status;
+    e.maintenance = !!(data && data.maintenance);
     throw e;
   }
   return data;
