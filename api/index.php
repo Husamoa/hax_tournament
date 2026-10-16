@@ -39,7 +39,7 @@ header('X-Content-Type-Options: nosniff');
 
 // Przerwa techniczna: true = całe API odpowiada 503 — łącznie z ?r=ingest (mecze z tampera
 // przepadają, nic się nie liczy) i logowaniem. Front na 503 {maintenance} pokazuje ekran przerwy.
-const MAINTENANCE = true;
+const MAINTENANCE = false;
 if (MAINTENANCE) {
     header('Retry-After: 3600');
     out(['error' => 'Przerwa techniczna — strona chwilowo niedostępna.', 'maintenance' => true], 503);
