@@ -15,7 +15,8 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
   importowana też w testach Node.
 - **`ranking.js`** — `computeRanking` + `validateScore`. Czysta logika, testowana w Node.
 - **`stats.js`** — statystyki globalne (leaderboard, `eloRatings`, `headToHead`, `teammates`,
-  `days`, `categories`, `summary`, `playerDetail`, `resolveMatches`/`aliasMap`). Czysta logika,
+  `days`, `categories`, `summary`, `playerDetail`, `resolveMatches`/`aliasMap`,
+  sezony: `matchMonth`/`seasonMatches`/`seasons`). Czysta logika,
   operuje na płaskiej liście meczów z `?r=stats`. Testowana w Node.
 - **`styles.css`** — mobile-first, zmienne CSS w `:root`, akcent „boiskowy" zielony.
 
@@ -28,7 +29,8 @@ SPA bez frameworka i bez build-stepu. Moduły ES ładowane bezpośrednio przez p
 - `setup` — ekran wyboru graczy `{name, selected:Set, mode, rematches}`
 - `subtab` (`mecze`|`tabela`), `editing` (edycja składów), `historyDetail`
 - **statystyki:** `statsRaw` (surowe z API), `statsMatches` (po aliasach), `statsSub`
-  (`ranking`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsCat`/`statsDay` (filtry),
+  (`ranking`|`sezony`|`mecze`|`gracz`|`h2h`|`dni`|`kategorie`|`aliasy`), `statsSeason`
+  (`YYYY-MM` | `'all'`; `null` = bieżący miesiąc), `statsCat`/`statsDay` (filtry),
   `statsPlayer`, `statsExpanded` (rozwinięte mecze), `statsForm` (formularz meczu ręcznego:
   `null` | `{mode:'add'}` | `{mode:'edit', id, red, blue, red_score, blue_score, started_at}`),
   `h2hA`/`h2hB`. Dane ładowane leniwie przy wejściu w zakładkę (`loadStats`), przycisk

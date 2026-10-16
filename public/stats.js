@@ -70,6 +70,11 @@ export function matchDay(startedAt) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** Sezon (lokalny miesiąc kalendarzowy, YYYY-MM) meczu. */
+export function matchMonth(startedAt) {
+  return matchDay(startedAt).slice(0, 7);
+}
+
 function winRate(wins, matches) {
   return matches ? wins / matches : 0;
 }
@@ -247,6 +252,33 @@ export function days(matches, cat = null) {
     .map((d) => {
       const lb = leaderboard(ms, { day: d, category: cat });
       return { date: d, matches: counts.get(d), champion: lb.length ? lb[0].name : null };
+    });
+}
+
+// ------------------------------------------------------------------ sezony (miesiące)
+/** Mecze jednego sezonu. Wszystko liczone z nich (łącznie z Elo) startuje od zera —
+ *  leaderboard(seasonMatches(...)) daje tabelę sezonu z Elo od bazy 1000. */
+export function seasonMatches(matches, month) {
+  return matches.filter((m) => matchMonth(m.started_at) === month);
+}
+
+/** Lista sezonów (najnowszy pierwszy) z tabelą końcową / bieżącą. `current` = YYYY-MM
+ *  bieżącego miesiąca — zawsze na liście (nawet bez meczów), oznaczony finished:false. */
+export function seasons(matches, current) {
+  const months = new Set(matches.map((m) => matchMonth(m.started_at)));
+  months.add(current);
+  return [...months]
+    .sort((x, y) => (x < y ? 1 : -1))
+    .map((month) => {
+      const ms = seasonMatches(matches, month);
+      const table = leaderboard(ms);
+      return {
+        month,
+        matches: ms.length,
+        finished: month < current,
+        champion: table.length ? table[0].name : null,
+        table,
+      };
     });
 }
 

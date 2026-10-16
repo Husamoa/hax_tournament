@@ -26,7 +26,8 @@ const state = {
   // --- statystyki ---
   statsRaw: null, // {matches, aliases} z API (surowe, przed resolvem aliasów)
   statsMatches: [], // mecze po zastosowaniu aliasów
-  statsSub: 'ranking', // ranking | mecze | gracz | h2h | dni | kategorie | aliasy
+  statsSub: 'ranking', // ranking | sezony | mecze | gracz | h2h | dni | kategorie | aliasy
+  statsSeason: null, // sezon rankingu: YYYY-MM | 'all' (wszech czasów); null = bieżący miesiąc
   statsCat: null, // filtr kategorii (np. '2v2') w rankingu
   statsDay: null, // filtr dnia (YYYY-MM-DD) w rankingu
   statsPlayer: null, // wybrany gracz (profil)
@@ -822,6 +823,7 @@ function renderGracze() {
 // ------------------------------------------------------------------ STATYSTYKI
 const STAT_SUBS = [
   ['ranking', 'Ranking'],
+  ['sezony', 'Sezony'],
   ['mecze', 'Mecze'],
   ['gracz', 'Gracz'],
   ['h2h', 'H2H'],
@@ -908,6 +910,7 @@ function renderStatsSub() {
     return;
   }
   if (state.statsSub === 'ranking') return renderStatRanking(box);
+  if (state.statsSub === 'sezony') return renderStatSeasons(box);
   if (state.statsSub === 'mecze') return renderStatMatches(box);
   if (state.statsSub === 'gracz') return renderStatPlayer(box);
   if (state.statsSub === 'h2h') return renderStatH2H(box);
@@ -934,9 +937,19 @@ const RANK_COLS = [
   ['goal_diff', '+/−', 'desc'],
 ];
 
+// --- Sezony: każdy miesiąc kalendarzowy liczony osobno (Elo, mecze, bilans od zera) ---
+const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec',
+  'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+const seasonLabel = (ym) => `${MONTHS_PL[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
+const currentSeason = () => stats.matchMonth(Date.now() / 1000);
+
 function renderStatRanking(box) {
-  const cats = stats.categories(countedStats());
-  const rows = stats.leaderboard(countedStats(), { day: state.statsDay, category: state.statsCat });
+  const cur = currentSeason();
+  const season = state.statsSeason || cur;
+  const seasonList = stats.seasons(countedStats(), cur).map((s) => s.month);
+  const base = season === 'all' ? countedStats() : stats.seasonMatches(countedStats(), season);
+  const cats = stats.categories(base);
+  const rows = stats.leaderboard(base, { day: state.statsDay, category: state.statsCat });
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : '');
 
   const { col, dir } = state.statsSort;
@@ -949,6 +962,10 @@ function renderStatRanking(box) {
   const arrow = (c) => (col === c ? (dir === 'asc' ? ' ▲' : ' ▼') : '');
 
   box.innerHTML = `
+    <div class="chips" style="margin-bottom:8px">
+      ${seasonList.map((s) => `<button class="chip ${season === s ? 'selected' : ''}" data-season="${s}">${seasonLabel(s)}${s === cur ? ' <span class="badge">trwa</span>' : ''}</button>`).join('')}
+      <button class="chip ${season === 'all' ? 'selected' : ''}" data-season="all">Wszech czasów</button>
+    </div>
     <div class="chips" style="margin-bottom:12px">
       <button class="chip ${state.statsCat === null ? 'selected' : ''}" data-cat="">Wszystkie</button>
       ${cats.map((c) => `<button class="chip ${state.statsCat === c.category ? 'selected' : ''}" data-cat="${esc(c.category)}">${esc(c.category)} <span class="badge">${c.matches}</span></button>`).join('')}
@@ -963,6 +980,7 @@ function renderStatRanking(box) {
           </tr>
         </thead>
         <tbody>
+          ${rows.length ? '' : `<tr><td colspan="${RANK_COLS.length + 2}" class="muted">Brak meczów w tym sezonie.</td></tr>`}
           ${rows
             .map(
               (r, i) => `
@@ -979,8 +997,16 @@ function renderStatRanking(box) {
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:.82rem;margin-top:8px">Elo (ranking), M=mecze, W/P=wygrane/przegrane, BZ/BS=bramki zdobyte/stracone (jako drużyna), +/−=bilans. Kliknij nagłówek by sortować. Mecze 1v1/2v1 nie są liczone.</p>
+    <p class="muted" style="font-size:.82rem;margin-top:8px">Sezon = miesiąc kalendarzowy: na starcie miesiąca Elo wraca do 1000, a mecze i bilans liczą się od zera. Elo (ranking), M=mecze, W/P=wygrane/przegrane, BZ/BS=bramki zdobyte/stracone (jako drużyna), +/−=bilans. Kliknij nagłówek by sortować. Mecze 1v1/2v1 nie są liczone.</p>
   `;
+  $$('.chip[data-season]', box).forEach((c) =>
+    c.addEventListener('click', () => {
+      state.statsSeason = c.dataset.season;
+      state.statsCat = null;
+      state.statsDay = null;
+      renderStatRanking(box);
+    }),
+  );
   $$('.chip[data-cat]', box).forEach((c) =>
     c.addEventListener('click', () => {
       state.statsCat = c.dataset.cat === '' ? null : c.dataset.cat;
@@ -1366,6 +1392,38 @@ function renderStatDays(box) {
   $$('.day-card', box).forEach((c) =>
     c.addEventListener('click', () => {
       state.statsDay = c.dataset.day;
+      state.statsSeason = 'all'; // dzień jak dotąd: Elo z całej historii
+      state.statsSub = 'ranking';
+      drawStatsShell();
+    }),
+  );
+}
+
+// --- Sezony (podsumowanie miesięcy) ---
+function renderStatSeasons(box) {
+  const medal = ['🥇', '🥈', '🥉'];
+  box.innerHTML = stats
+    .seasons(countedStats(), currentSeason())
+    .map(
+      (s) => `
+      <div class="card season-card" data-season="${s.month}" style="cursor:pointer">
+        <div class="row spread">
+          <b>${seasonLabel(s.month)}</b>
+          <span class="muted">${s.finished ? 'zakończony' : 'trwa'} · ${s.matches} meczów</span>
+        </div>
+        <div class="winner" style="color:var(--green-dark);font-weight:600;margin-top:4px">
+          ${s.champion ? `${s.finished ? '🏆 Zwycięzca' : 'Prowadzi'}: ${esc(s.champion)} (${s.table[0].elo})` : 'Brak meczów'}
+        </div>
+        ${s.table.length > 1 ? `<div class="muted" style="font-size:.85rem;margin-top:4px">${s.table.slice(0, 3).map((r, i) => `${medal[i]} ${esc(r.name)} ${r.elo}`).join(' · ')}</div>` : ''}
+      </div>`,
+    )
+    .join('');
+  // Klik -> pełna tabela sezonu (końcowa dla zakończonych) w Rankingu.
+  $$('.season-card', box).forEach((c) =>
+    c.addEventListener('click', () => {
+      state.statsSeason = c.dataset.season;
+      state.statsCat = null;
+      state.statsDay = null;
       state.statsSub = 'ranking';
       drawStatsShell();
     }),

@@ -79,6 +79,11 @@ Podkatalogi mają własne `CLAUDE.md`: [`api/CLAUDE.md`](api/CLAUDE.md), [`publi
   turniejach (`ranking.js`). Elo: baza 1000, K=32, odtwarzane chronologicznie; ocena drużyny =
   średnia + **handicap liczebności** `± 150·(rozmiar_red − rozmiar_blue)` (przy 3v2 wygrana
   słabszej liczebnie waży dużo, silniejszej — mało; 2v2 bez zmian).
+- **Sezony = miesiące kalendarzowe (czas lokalny):** Ranking domyślnie pokazuje bieżący
+  miesiąc. Tabela sezonu liczy się **wyłącznie** z meczów tego miesiąca — Elo startuje od 1000,
+  mecze/bilans od zera (`stats.seasonMatches` → `leaderboard`). Zwycięzca sezonu = 1. miejsce
+  tabeli na koniec miesiąca (zakładka „Sezony”). „Wszech czasów” zostaje jako opcja; profil
+  gracza i filtr dnia liczą Elo z całej historii.
 - **Mecze liczone globalnie:** tylko gdy obie drużyny ≥2 graczy (`stats.counted()`) — bez 1v1,
   2v1, 3v1 — oraz **nie-treningowe** (`is_training=0`). Wykluczone są widoczne w historii
   (plakietki „nieliczony"/„treningowy"), poza obliczeniami.

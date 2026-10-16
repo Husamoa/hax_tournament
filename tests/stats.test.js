@@ -123,3 +123,38 @@ test('kategorie i summary', () => {
 test('playerDetail: null gdy gracz nie grał', () => {
   assert.equal(stats.playerDetail([m('L1', ['Ala'], ['C'], 1, 0)], 'Ktoś'), null);
 });
+
+test('sezony: każdy miesiąc liczony osobno — Elo i mecze od zera, granica miesiąca lokalnie', () => {
+  const t = (y, mo, d, h = 12, mi = 0) => new Date(y, mo - 1, d, h, mi).getTime() / 1000;
+  const ms = [
+    m('W1', ['A', 'B'], ['C', 'D'], 3, 0, t(2026, 9, 10)),
+    m('W2', ['A', 'B'], ['C', 'D'], 3, 0, t(2026, 9, 30, 23, 59)), // ostatnia minuta września
+    m('P1', ['C', 'D'], ['A', 'B'], 3, 0, t(2026, 10, 1, 0, 1)),  // pierwsza minuta października
+  ];
+  const sez = stats.seasons(ms, '2026-10');
+  assert.deepEqual(sez.map((s) => [s.month, s.matches, s.finished]), [
+    ['2026-10', 1, false],
+    ['2026-09', 2, true],
+  ]);
+
+  // Wrzesień: tylko mecze września, zwycięzca z wrześniowej tabeli.
+  const wrz = sez[1];
+  assert.ok(['A', 'B'].includes(wrz.champion));
+  assert.equal(wrz.table.find((r) => r.name === 'A').matches, 2);
+
+  // Październik: Elo od bazy 1000 — identyczne jak po jednym meczu w próżni.
+  const paz = sez[0];
+  const fresh = stats.leaderboard([ms[2]]);
+  assert.ok(['C', 'D'].includes(paz.champion));
+  assert.equal(paz.table.find((r) => r.name === 'C').elo, fresh.find((r) => r.name === 'C').elo);
+  assert.equal(paz.table.find((r) => r.name === 'A').matches, 1);
+  assert.equal(paz.table.find((r) => r.name === 'A').elo, 1000 - 16);
+});
+
+test('sezony: bieżący miesiąc bez meczów jest na liście', () => {
+  const sez = stats.seasons([m('L1', ['A', 'B'], ['C', 'D'], 1, 0, new Date(2026, 8, 5).getTime() / 1000)], '2026-10');
+  assert.deepEqual(sez.map((s) => [s.month, s.matches, s.champion]), [
+    ['2026-10', 0, null],
+    ['2026-09', 1, sez[1].champion],
+  ]);
+});
